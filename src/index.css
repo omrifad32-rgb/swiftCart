@@ -1,0 +1,196 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;900&family=Oswald:wght@700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Rubik", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Oswald", sans-serif;
+
+  --color-bg-space-1: #02000a;
+  --color-bg-space-2: #09001a;
+  --color-bg-space-3: #001122;
+  --color-pri: #00f0ff;
+  --color-pri-glow: rgba(0, 240, 255, 0.5);
+  --color-acc: #ff0055;
+  --color-acc-glow: rgba(255, 0, 85, 0.5);
+  --color-pb: #1ED2C8;
+  --color-gold: #fcee0a;
+  --color-admin-purple: #a200ff;
+  --color-glass: rgba(255, 255, 255, 0.05);
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-text: #ffffff;
+  --color-text-muted: #9ca3af;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-space-1 text-text overflow-x-hidden font-sans antialiased min-h-screen scroll-smooth;
+    background: linear-gradient(135deg, var(--color-bg-space-1), var(--color-bg-space-2), var(--color-bg-space-3), var(--color-bg-space-1));
+    background-size: 400% 400%;
+    animation: spaceGradient 20s ease infinite;
+    background-attachment: fixed;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input, textarea, select {
+    @apply w-full bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-white outline-none focus:border-pri transition-all;
+  }
+}
+
+@keyframes spaceGradient {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@layer components {
+  .glass-header {
+    @apply fixed top-0 left-0 w-full h-20 bg-[rgba(2,0,10,0.95)] border-b border-white/10 z-[99999] flex justify-between items-center px-4 md:px-8 backdrop-blur-xl shadow-2xl;
+  }
+
+  .nav-bar {
+    @apply fixed bottom-0 left-0 w-full h-[85px] bg-[rgba(5,5,12,0.98)] border-t border-white/10 flex justify-around items-center z-[999999] backdrop-blur-2xl pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_40px_rgba(0,0,0,0.8)] pointer-events-auto;
+  }
+
+  body.light-theme {
+    --color-bg-space-1: #f8f9fa;
+    --color-bg-space-2: #e9ecef;
+    --color-bg-space-3: #dee2e6;
+    --color-text: #000000;
+    --color-text-muted: #4b5563;
+    --color-glass: rgba(0, 0, 0, 0.05);
+    --color-border: rgba(0, 0, 0, 0.1);
+    @apply bg-white text-black;
+    background: #f8f9fa;
+    animation: none;
+  }
+
+  body.light-theme .glass-header {
+    @apply bg-white/90 border-black/5 text-black;
+  }
+
+  body.light-theme .nav-bar {
+    @apply bg-white/95 border-black/5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)];
+  }
+
+  body.light-theme .bg-glass,
+  body.light-theme .bg-black/60,
+  body.light-theme .bg-black/40,
+  body.light-theme .bg-white/5 {
+    @apply bg-white border-black/5 shadow-sm;
+  }
+
+  body.light-theme .text-white,
+  body.light-theme .text-gray-300,
+  body.light-theme .text-gray-400 {
+    @apply text-gray-800;
+  }
+
+  body.light-theme .text-gray-500,
+  body.light-theme .text-gray-600 {
+    @apply text-gray-500;
+  }
+
+  body.light-theme input,
+  body.light-theme textarea,
+  body.light-theme select {
+    @apply bg-gray-50 border-gray-200 text-black focus:border-pri;
+  }
+
+  body.light-theme .mod-content {
+    @apply bg-white border-gray-100 text-black;
+  }
+
+  body.light-theme .product-card {
+    @apply bg-white border-gray-100 shadow-md;
+  }
+
+  body.light-theme .btn-main {
+    @apply shadow-none;
+  }
+
+  .btn-main {
+    @apply bg-linear-to-r from-pri to-[#0066ff] text-black font-black py-4 px-8 rounded-2xl shadow-[0_10px_30px_rgba(0,240,255,0.4)] transition-all active:scale-95 flex items-center justify-center gap-3 w-full cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-outline {
+    @apply bg-transparent border-2 border-pri text-pri font-black py-4 px-8 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-3 w-full cursor-pointer hover:bg-pri/10;
+  }
+
+  .btn-delete {
+    @apply bg-acc text-white font-black py-4 px-8 rounded-2xl shadow-[0_10px_30px_rgba(255,0,85,0.3)] transition-all active:scale-95 flex items-center justify-center gap-3 w-full cursor-pointer;
+  }
+
+  .product-card {
+    @apply bg-linear-to-br from-[rgba(30,30,40,0.9)] to-[rgba(10,10,15,0.95)] rounded-[30px] border border-white/10 relative shadow-xl flex flex-col transition-all duration-300 hover:border-pri/40 overflow-hidden;
+  }
+
+  .oos-overlay {
+    @apply absolute inset-0 bg-black/40 backdrop-blur-[1px] z-20 flex items-center justify-center transition-all duration-500 pointer-events-none;
+  }
+
+  .oos-text {
+    @apply bg-acc text-white font-black px-6 py-2 rounded-full text-xl md:text-2xl rotate-[-15deg] shadow-[0_0_30px_rgba(255,0,85,0.6)] border-2 border-white/20;
+  }
+
+  .sale-tag {
+    @apply absolute top-4 right-4 z-10 bg-acc text-white font-black px-3 py-1 rounded-lg text-xs shadow-lg;
+  }
+
+  .sec-title {
+    @apply text-3xl md:text-4xl font-display font-black mb-8 text-right border-r-8 border-pri pr-4 md:pr-6 leading-none;
+  }
+
+  .modal {
+    @apply fixed inset-0 z-[20000] bg-black/90 backdrop-blur-md flex items-start justify-center p-0 md:p-4 overflow-y-auto pt-0 md:pt-20;
+  }
+
+  .mod-content {
+    @apply bg-linear-to-br from-[#1a1a2e] to-[#050508] w-full max-w-4xl rounded-t-[30px] md:rounded-[40px] border border-white/10 p-6 md:p-10 relative shadow-2xl mt-auto md:mt-0 min-h-[50vh] md:min-h-0;
+  }
+
+  .close-mod {
+    @apply absolute top-4 right-4 w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all z-50;
+  }
+
+  .search-bar {
+    @apply w-full bg-black/40 border border-white/10 rounded-2xl py-4 pr-14 pl-6 text-white outline-none focus:border-pri transition-all;
+  }
+
+  .cat-tab {
+    @apply px-6 py-3 rounded-full whitespace-nowrap transition-all border border-white/10 bg-white/5 text-gray-400 font-bold;
+  }
+  .cat-tab.active {
+    @apply bg-pri text-black border-pri shadow-[0_0_20px_rgba(0,240,255,0.3)];
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00f0ff;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (max-width: 640px) {
+  .mod-content {
+    @apply p-5;
+  }
+  .sec-title {
+    @apply text-2xl mb-6;
+  }
+}
