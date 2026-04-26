@@ -1,3 +1,10 @@
+export interface ProductVariant {
+  id: string;
+  name: string;
+  price?: number; // Optional: variation can have a different price
+  img?: string;   // Optional: variation can have a different image
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -12,10 +19,13 @@ export interface Product {
   inS?: boolean | string;
   flashSaleEligible?: boolean;
   shippingCost?: number;
+  variants?: ProductVariant[];
+  variantLabel?: string; // e.g. "Select Model", "Color", etc.
 }
 
 export interface CartItem extends Product {
   qty: number;
+  selectedVariant?: ProductVariant;
 }
 
 export interface Order {

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/** internal-system-ver: 1.0.1 **/
 import { useState, useEffect, useMemo, useRef, ChangeEvent } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set, push, update, remove, get } from 'firebase/database';
@@ -66,10 +67,13 @@ import {
   ArrowRight,
   AlertCircle,
   Wallet,
-  Menu
+  Menu,
+  ExternalLink,
+  Link,
+  Edit
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Product, CartItem, Order, Review, AppSettings, ContactMessage } from './types';
+import { Product, CartItem, Order, Review, AppSettings, ContactMessage, ProductVariant, ChatMessage, ChatSession } from './types';
 
 // Firebase configuration (from user's request)
 const firebaseConfig = {
@@ -95,8 +99,8 @@ export default function App() {
   const [contactFormStatus, setContactFormStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
   
   // Chat States
-  const [chatSessions, setChatSessions] = useState<import('./types').ChatSession[]>([]);
-  const [myChat, setMyChat] = useState<import('./types').ChatMessage[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [myChat, setMyChat] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [selectedChatUser, setSelectedChatUser] = useState<string | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -114,7 +118,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [categories, setCategories] = useState<string[]>(['ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה']);
+  const [categories, setCategories] = useState<string[]>(['מגני מסך', 'אביזרים לסמארטפונים', 'טאבלטים', 'שעונים חכמים', 'ציוד הקלטה', 'ציוד גיימינג', 'אביזרי רכב', 'בית חכם', 'כבלים ומתאמים', 'ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה', 'אלקטרוניקה', 'בית וגן', 'צעצועים', 'ספורט', 'רכב']);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,8 +129,8 @@ export default function App() {
   const [revImg, setRevImg] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings>({
-    title: "SwiftCart",
-    sub: "PREMIUM EXTREME GEAR",
+    title: "טיטאן X",
+    sub: "ציוד אקסטרים פרימיום",
     pb: "#",
     terms: "תקנון האתר יוצג כאן...",
     isWarMode: false,
@@ -154,7 +158,7 @@ export default function App() {
   const [guestId, setGuestId] = useState<string>(() => {
     const saved = localStorage.getItem('sc_guest_id');
     if (saved) return saved;
-    const newId = `guest_${Math.random().toString(36).substr(2, 9)}`;
+    const newId = `guest_${Math.random().toString(36).substring(2, 11)}`;
     localStorage.setItem('sc_guest_id', newId);
     return newId;
   });
@@ -168,7 +172,7 @@ export default function App() {
   const [authPass, setAuthPass] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAddProdModal, setShowAddProdModal] = useState(false);
-  const [showQuickPay, setShowQuickPay] = useState(false);
+  const [showDonationsModal, setShowDonationsModal] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [confirmPlacement, setConfirmPlacement] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -190,6 +194,7 @@ export default function App() {
   }, [settings.theme]);
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [tempQty, setTempQty] = useState(1);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
@@ -216,6 +221,7 @@ export default function App() {
     if (selectedProduct) {
       setTempQty(1);
       setEditingImgIdx(0);
+      setSelectedVariant(null);
     }
   }, [selectedProduct]);
 
@@ -224,17 +230,33 @@ export default function App() {
   const [lastOrderTotal, setLastOrderTotal] = useState(0);
   const [lastOrderId, setLastOrderId] = useState<string>('');
   const [pendingImg, setPendingImg] = useState<string>('');
-  const [newProdData, setNewProdData] = useState({ name: '', price: '', oldPrice: '', costPrice: 0, category: '', desc: '', img: '', extraImages: [] as string[], stock: -1, shippingCost: 0 });
+  const [newProdData, setNewProdData] = useState({ 
+    name: '', 
+    price: '', 
+    oldPrice: '', 
+    costPrice: 0, 
+    category: '', 
+    desc: '', 
+    img: '', 
+    extraImages: [] as string[], 
+    stock: -1, 
+    shippingCost: 0,
+    variants: [] as ProductVariant[],
+    variantLabel: 'בחר דגם'
+  });
   const [newCatName, setNewCatName] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [editingProdIndex, setEditingProdIndex] = useState<number | null>(null);
   const [editProdData, setEditProdData] = useState<Product | null>(null);
   const [showEditProdModal, setShowEditProdModal] = useState(false);
   const [showCustomerManagement, setShowCustomerManagement] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [showMessages, setShowMessages] = useState(false);
 
   const [editingRev, setEditingRev] = useState<Review | null>(null);
   const [showCookieBanner, setShowCookieBanner] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void } | null>(null);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   // Sync theme to body class
   useEffect(() => {
@@ -325,7 +347,12 @@ export default function App() {
 
     onValue(categoriesRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) setCategories(Array.isArray(data) ? data : Object.values(data));
+      if (data && Array.isArray(data) && data.length > 0) {
+        setCategories(data);
+      } else if (!data || (Array.isArray(data) && data.length === 0)) {
+        // If data is null or empty in Firebase, we keep our default state and optionally seed it
+        set(ref(db, 'categories'), ['מגני מסך', 'אביזרים לסמארטפונים', 'טאבלטים', 'שעונים חכמים', 'ציוד הקלטה', 'ציוד גיימינג', 'אביזרי רכב', 'בית חכם', 'כבלים ומתאמים', 'ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה', 'אלקטרוניקה', 'בית וגן', 'צעצועים', 'ספורט', 'רכב']);
+      }
     });
 
     onValue(ordersRef, (snapshot) => {
@@ -367,15 +394,11 @@ export default function App() {
     const unsubscribeProds = onValue(productsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const productsList = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
-        setProducts(productsList as Product[]);
+        let productsList = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
+        
+          setProducts(productsList as Product[]);
       } else {
-        setProducts([
-          { id: '1', name: 'Elite Helmet V1', price: 299, img: 'https://picsum.photos/seed/helmet/400/400', category: 'ציוד מגן' },
-          { id: '2', name: 'Pro Gloves X', price: 89, img: 'https://picsum.photos/seed/gloves/400/400', category: 'אביזרים' },
-          { id: '3', name: 'Stealth Jacket', price: 450, img: 'https://picsum.photos/seed/jacket/400/400', category: 'ביגוד' },
-          { id: '4', name: 'Carbon Knee Pads', price: 120, img: 'https://picsum.photos/seed/kneepads/400/400', category: 'ציוד מגן' },
-        ]);
+        setProducts([]);
       }
       
       setTimeout(() => {
@@ -431,7 +454,7 @@ export default function App() {
   }, [user]);
 
   const categoriesList = useMemo(() => {
-    return ['all', ...categories];
+    return ['all', ...Array.from(new Set(categories))];
   }, [categories]);
 
   const filteredProducts = useMemo(() => {
@@ -445,7 +468,10 @@ export default function App() {
 
   const cartCount = useMemo(() => cart.reduce((acc, item) => acc + item.qty, 0), [cart]);
   const cartTotal = useMemo(() => {
-    const raw = cart.reduce((acc, item) => acc + (Number(item.price) * item.qty), 0);
+    const raw = cart.reduce((acc, item) => {
+      const price = Number(item.selectedVariant?.price ?? item.price);
+      return acc + (isNaN(price) ? 0 : price) * item.qty;
+    }, 0);
     const globalDisc = settings.globalDiscountPercent || 0;
     const flashSaleDisc = flashSaleTime > 0 ? 10 : 0;
     const totalDisc = globalDisc + flashSaleDisc;
@@ -504,30 +530,51 @@ export default function App() {
     }
   }, [user]);
 
-  const addToCart = (product: Product, qty: number = 1) => {
+  const addToCart = (product: Product, qty: number = 1, variant?: ProductVariant | null) => {
+    if (!product) return;
+    const itemVariant = variant || selectedVariant;
+    
+    const hasVariants = product.variants && Object.keys(product.variants).length > 0;
+    
+    // If product has variants but none selected, require one
+    if (hasVariants && !itemVariant) {
+      setAlertMessage("נא לבחור " + (product.variantLabel || "אופציה"));
+      return;
+    }
+
+    const cartId = itemVariant ? `${product.id}_${itemVariant.id}` : product.id;
     const currentStock = product.stock !== undefined ? product.stock : (product.inS === 'false' ? 0 : -1);
     
     setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
+      const existing = prev.find(item => {
+        const existingId = item.selectedVariant ? `${item.id}_${item.selectedVariant.id}` : item.id;
+        return existingId === cartId;
+      });
       let newCart;
       
       if (existing) {
         const totalQty = existing.qty + qty;
         if (currentStock !== -1 && totalQty > currentStock) {
-          alert(`מצטערים, נשארו רק ${currentStock} יחידות במלאי`);
+          setAlertMessage(`מצטערים, נשארו רק ${currentStock} יחידות במלאי`);
           return prev;
         }
-        newCart = prev.map(item => item.id === product.id ? { ...item, qty: totalQty } : item);
+        newCart = prev.map(item => {
+          const existingId = item.selectedVariant ? `${item.id}_${item.selectedVariant.id}` : item.id;
+          return existingId === cartId ? { ...item, qty: totalQty } : item;
+        });
       } else {
         if (currentStock !== -1 && qty > currentStock) {
-          alert(`מצטערים, נשארו רק ${currentStock} יחידות במלאי`);
+          setAlertMessage(`מצטערים, נשארו רק ${currentStock} יחידות במלאי`);
           return prev;
         }
-        newCart = [...prev, { ...product, qty }];
+        newCart = [...prev, { ...product, qty, selectedVariant: itemVariant || undefined }];
       }
-      if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), newCart);
+      
+      if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), JSON.parse(JSON.stringify(newCart)));
+      localStorage.setItem('sc_cart', JSON.stringify(newCart));
       return newCart;
     });
+    setAuthNote(`התווסף לסל: ${product.name}${itemVariant ? ` (${itemVariant.name})` : ''}`);
     setSelectedProduct(null);
   };
 
@@ -544,35 +591,44 @@ export default function App() {
     });
   };
 
-  const updateQty = (id: string, delta: number) => {
+  const updateQty = (cartId: string, delta: number) => {
     setCart(prev => {
-      const item = prev.find(i => i.id === id);
+      const item = prev.find(i => {
+        const iId = i.selectedVariant ? `${i.id}_${i.selectedVariant.id}` : i.id;
+        return iId === cartId;
+      });
       if (!item) return prev;
       
       const currentStock = item.stock !== undefined ? item.stock : (item.inS === 'false' ? 0 : -1);
       const newQty = item.qty + delta;
       
       if (delta > 0 && currentStock !== -1 && newQty > currentStock) {
-        alert(`מצטערים, אין יותר יחידות במלאי`);
+        setAlertMessage(`מצטערים, אין יותר יחידות במלאי`);
         return prev;
       }
 
       const newCart = prev.map(i => {
-        if (i.id === id) {
+        const iId = i.selectedVariant ? `${i.id}_${i.selectedVariant.id}` : i.id;
+        if (iId === cartId) {
           return newQty > 0 ? { ...i, qty: newQty } : null;
         }
         return i;
       }).filter((i): i is CartItem => i !== null);
       
-      if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), newCart);
+      if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), JSON.parse(JSON.stringify(newCart)));
+      localStorage.setItem('sc_cart', JSON.stringify(newCart));
       return newCart;
     });
   };
 
-  const removeItem = (id: string) => {
+  const removeItem = (cartId: string) => {
     setCart(prev => {
-      const newCart = prev.filter(item => item.id !== id);
-      if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), newCart);
+      const newCart = prev.filter(i => {
+        const iId = i.selectedVariant ? `${i.id}_${i.selectedVariant.id}` : i.id;
+        return iId !== cartId;
+      });
+      if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), JSON.parse(JSON.stringify(newCart)));
+      localStorage.setItem('sc_cart', JSON.stringify(newCart));
       return newCart;
     });
   };
@@ -652,18 +708,18 @@ export default function App() {
     
     setCheckoutError(null);
     const id = 'SC-' + Math.floor(Math.random() * 9000 + 1000);
-    const itemsStr = cart.map(x => `${x.name} (x${x.qty})`).join(', ');
+    const itemsStr = cart.map(x => `${x.name}${x.selectedVariant ? ` (${x.selectedVariant.name})` : ''} (x${x.qty})`).join(', ');
     const fullAddress = `${checkoutData.city}, ${checkoutData.street}`;
     
     let totalWithShipping = cartTotal + currentShippingCost;
     
     // Balance usage logic
-    const discountedTotal = Math.round(cart.reduce((acc, item) => acc + (Number(item.price) * item.qty), 0) * (1 - ((settings.globalDiscountPercent || 0) + (flashSaleTime > 0 ? 10 : 0)) / 100));
+    const discountedTotal = Math.round(cart.reduce((acc, item) => acc + (Number(item.selectedVariant?.price ?? item.price) * item.qty), 0) * (1 - ((settings.globalDiscountPercent || 0) + (flashSaleTime > 0 ? 10 : 0)) / 100));
     const amountFromBalance = useBalanceInCheckout ? Math.min(userBalance, discountedTotal) : 0;
 
     // Calculate net profit: (Sales - Costs)
     const orderProfit = cart.reduce((acc, item) => {
-      const price = Number(item.price);
+      const price = Number(item.selectedVariant?.price ?? item.price);
       const cost = item.costPrice || price; 
       return acc + (price - cost) * item.qty;
     }, 0) + currentShippingCost;
@@ -754,26 +810,74 @@ export default function App() {
     }
   };
 
-  const handleAddProduct = () => {
-    if (!newProdData.name || !newProdData.price || !newProdData.img) return;
-    const id = Date.now().toString();
-    const list = [...products];
-    list.unshift({ ...newProdData, id });
-    set(ref(db, 'products'), list);
-    setShowAddProdModal(false);
-    setNewProdData({ name: '', price: '', oldPrice: '', costPrice: 0, category: '', desc: '', img: '', stock: -1, shippingCost: 0 });
+  const cleanPayload = (obj: any): any => {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(cleanPayload).filter(v => v !== undefined);
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([_, v]) => v !== undefined)
+        .map(([k, v]) => [k, cleanPayload(v)])
+    );
   };
 
-  const handleUpdateProduct = (index: number, data: Partial<Product>) => {
+  const handleAddProduct = () => {
+    if (!newProdData.name || !newProdData.price || !newProdData.img) return;
+    setConfirmAction({
+      message: 'האם אתה בטוח שברצונך להוסיף מוצר זה?',
+      onConfirm: () => {
+        const id = Date.now().toString();
+        const list = [...products];
+        list.unshift({ ...newProdData, id });
+        set(ref(db, 'products'), cleanPayload(list));
+        setShowAddProdModal(false);
+        setNewProdData({ 
+          name: '', 
+          price: '', 
+          oldPrice: '', 
+          costPrice: 0, 
+          category: '', 
+          desc: '', 
+          img: '', 
+          extraImages: [] as string[], 
+          stock: -1, 
+          shippingCost: 0,
+          variants: [] as ProductVariant[],
+          variantLabel: 'בחר דגם'
+        });
+      }
+    });
+  };
+
+  const handleUpdateProduct = (id: string, data: Partial<Product>) => {
     const list = [...products];
-    list[index] = { ...list[index], ...data };
-    set(ref(db, 'products'), list);
+    const index = list.findIndex(p => p.id === id);
+    if (index !== -1) {
+      list[index] = { ...list[index], ...data };
+      set(ref(db, 'products'), cleanPayload(list));
+    }
     setShowEditProdModal(false);
     setEditingProdIndex(null);
     setEditProdData(null);
   };
 
   const [editingImgIdx, setEditingImgIdx] = useState(0);
+
+  const productImages = useMemo(() => {
+    if (!selectedProduct) return [];
+    // Ensure extraImages is treated as an array
+    const extras = Array.isArray(selectedProduct.extraImages) ? selectedProduct.extraImages : [];
+    const base = [selectedProduct.img, ...extras].filter(Boolean);
+    
+    // Add variant image if it exists and isn't already in the list
+    if (selectedVariant?.img && !base.includes(selectedVariant.img)) {
+      return [selectedVariant.img, ...base];
+    }
+    return base;
+  }, [selectedProduct, selectedVariant]);
+
+  const currentDisplayImg = (productImages && productImages.length > editingImgIdx) 
+    ? productImages[editingImgIdx] 
+    : (selectedProduct?.img || '');
 
   const startEditing = (product: Product) => {
     const index = products.findIndex(p => p.id === product.id);
@@ -784,9 +888,14 @@ export default function App() {
     }
   };
 
-  const handleDeleteProduct = (index: number) => {
-    const list = products.filter((_, i) => i !== index);
-    set(ref(db, 'products'), list);
+  const handleDeleteProduct = (id: string) => {
+    setConfirmAction({
+      message: 'האם אתה בטוח שברצונך למחוק מוצר זה לצמיתות?',
+      onConfirm: () => {
+        const list = products.filter((p) => p.id !== id);
+        set(ref(db, 'products'), cleanPayload(list));
+      }
+    });
   };
 
   const handleAddCategory = () => {
@@ -852,7 +961,7 @@ export default function App() {
           <Rocket className="w-20 h-20 text-pri drop-shadow-[0_15px_30px_rgba(0,240,255,0.4)]" />
         </motion.div>
         <div className="font-display text-5xl uppercase tracking-widest mt-8 animate-pulse">
-          {settings.title.split('Cart')[0]}<span className="text-pri">Cart</span>
+          {settings.title}
         </div>
         <p className="text-gray-500 font-bold tracking-widest mt-4">המערכת עולה לאוויר...</p>
       </div>
@@ -885,7 +994,7 @@ export default function App() {
              window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         >
-          {settings.title.split('Cart')[0]}<span className="text-pri drop-shadow-[0_0_10px_rgba(0,240,255,0.4)]">Cart</span>
+          {settings.title}
         </div>
         
         <div className="flex items-center gap-6">
@@ -1002,7 +1111,7 @@ export default function App() {
                                <ImageIcon className="w-6 h-6" />
                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleUploadImage(e, (url) => {
                                    const msgId = Date.now().toString();
-                                   const newMsg: import('./types').ChatMessage = { id: msgId, sender: 'user', text: '', img: url, timestamp: Date.now() };
+                                   const newMsg: ChatMessage = { id: msgId, sender: 'user', text: '', img: url, timestamp: Date.now() };
                                    const chatRef = ref(db, `chats/${user.replace(/\./g, ',')}`);
                                    update(chatRef, { lastUpdate: Date.now(), unreadByAdmin: true, email: user });
                                    set(ref(db, `chats/${user.replace(/\./g, ',')}/messages/${msgId}`), newMsg);
@@ -1018,7 +1127,7 @@ export default function App() {
                                    e.preventDefault();
                                    if (!chatInput.trim()) return;
                                    const msgId = Date.now().toString();
-                                   const newMsg: import('./types').ChatMessage = { id: msgId, sender: 'user', text: chatInput.trim(), timestamp: Date.now() };
+                                   const newMsg: ChatMessage = { id: msgId, sender: 'user', text: chatInput.trim(), timestamp: Date.now() };
                                    const chatRef = ref(db, `chats/${user.replace(/\./g, ',')}`);
                                    update(chatRef, { lastUpdate: Date.now(), unreadByAdmin: true, email: user });
                                    set(ref(db, `chats/${user.replace(/\./g, ',')}/messages/${msgId}`), newMsg);
@@ -1065,7 +1174,7 @@ export default function App() {
             >
               <div className="text-center pb-8 border-b border-white/10 max-w-4xl mx-auto">
                 <h1 className="font-display text-5xl md:text-7xl font-black mb-4 tracking-wider">
-                  {settings.title.split('Cart')[0]}<span className="text-pri drop-shadow-[0_0_10px_rgba(0,240,255,0.4)]">Cart</span>
+                  {settings.title}
                 </h1>
                 <p className="text-xl md:text-2xl text-pri font-bold tracking-widest uppercase">{settings.sub}</p>
               </div>
@@ -1212,12 +1321,6 @@ export default function App() {
                     />
                   </div>
                   <button 
-                    onClick={() => setShowQuickPay(true)}
-                    className="p-5 rounded-2xl border-2 transition-all bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500 hover:text-white shadow-[0_0_20px_rgba(34,197,94,0.3)] flex items-center justify-center gap-2 font-bold group whitespace-nowrap"
-                  >
-                    <Wallet className="w-8 h-8 group-hover:scale-110 transition-transform" /> <span className="hidden sm:inline">תשלום מהיר</span>
-                  </button>
-                  <button 
                     onClick={() => setIsWishlistView(!isWishlistView)}
                     className={`p-5 rounded-2xl border-2 transition-all ${isWishlistView ? 'bg-acc border-acc text-white shadow-[0_0_30px_rgba(255,0,85,0.4)]' : 'bg-black/50 border-acc/30 text-acc'}`}
                   >
@@ -1238,8 +1341,8 @@ export default function App() {
                     ))}
                   </div>
                   <button 
-                    onClick={() => setShowQuickPay(true)}
-                    className="flex-shrink-0 mr-4 text-pri font-black text-sm flex items-center gap-2 hover:scale-105 transition-all bg-pri/10 py-2 px-4 rounded-full border border-pri/20 shadow-[0_0_15px_rgba(0,240,255,0.1)]"
+                    onClick={() => setShowDonationsModal(true)}
+                    className="flex-shrink-0 mr-4 text-pink-500 font-black text-sm flex items-center gap-2 hover:scale-105 transition-all bg-pink-500/10 py-2 px-4 rounded-full border border-pink-500/20 shadow-[0_0_15px_rgba(236,72,153,0.1)]"
                   >
                     <Heart className="w-4 h-4 fill-current" /> תרומה לאתר
                   </button>
@@ -1274,7 +1377,14 @@ export default function App() {
 
                     <div className="absolute bottom-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0">
                       <button 
-                        onClick={(e) => { e.stopPropagation(); addToCart(p, 1); }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          if (p.variants && Object.keys(p.variants).length > 0) {
+                            setSelectedProduct(p);
+                          } else {
+                            addToCart(p, 1); 
+                          }
+                        }}
                         className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-white shadow-2xl transition-all active:scale-90 bg-pri hover:bg-pri/80`}
                       >
                         <Plus className="w-6 h-6 md:w-8 md:h-8" />
@@ -1355,51 +1465,64 @@ export default function App() {
                     <button 
                       className="text-acc font-bold flex items-center gap-2 mr-auto hover:underline"
                       onClick={() => {
-                        if (window.confirm('לרוקן את כל הסל?')) {
-                          setCart([]);
-                          if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), []);
-                        }
+                        setConfirmAction({
+                          message: 'לרוקן את כל הסל?',
+                          onConfirm: () => {
+                            setCart([]);
+                            if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), []);
+                          }
+                        });
                       }}
                     >
                       <Trash2 className="w-5 h-5" /> נקה סל
                     </button>
                   </div>
 
-                  {cart.map(item => (
-                    <div key={item.id} className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 bg-glass p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 bg-black/40 rounded-2xl p-3 sm:p-4 flex items-center justify-center border border-white/5">
-                        <img src={item.img} alt={item.name} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                      </div>
-                      <div className="flex-grow text-center sm:text-right">
-                        <div className="font-bold text-lg sm:text-xl mb-1 line-clamp-1">{item.name}</div>
-                        <div className="text-gold font-display text-xl sm:text-2xl">₪{item.price}</div>
-                      </div>
-                      <div className="flex items-center gap-4 bg-black/40 p-2 rounded-2xl border border-white/5 w-full sm:w-auto justify-center">
-                        <button 
-                          onClick={() => removeItem(item.id)}
-                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-acc/10 text-acc flex items-center justify-center hover:bg-acc/20 active:scale-90 transition-all ml-2"
-                          title="הסר מהסל"
-                        >
-                          <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                        <div className="flex items-center gap-3">
+                  {cart.map(item => {
+                    const cartId = item.selectedVariant ? `${item.id}_${item.selectedVariant.id}` : item.id;
+                    const displayImg = item.selectedVariant?.img || item.img;
+                    const displayPrice = item.selectedVariant?.price ?? item.price;
+                    return (
+                      <div key={cartId} className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 bg-glass p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-black/40 rounded-2xl p-3 sm:p-4 flex items-center justify-center border border-white/5">
+                          <img src={displayImg} alt={item.name} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                        <div className="flex-grow text-center sm:text-right">
+                          <div className="font-bold text-lg sm:text-xl mb-1 line-clamp-1">{item.name}</div>
+                          {item.selectedVariant && (
+                            <div className="text-pri text-xs font-black uppercase tracking-widest mb-1">
+                              {item.selectedVariant.name}
+                            </div>
+                          )}
+                          <div className="text-gold font-display text-xl sm:text-2xl">₪{displayPrice}</div>
+                        </div>
+                        <div className="flex items-center gap-4 bg-black/40 p-2 rounded-2xl border border-white/5 w-full sm:w-auto justify-center">
                           <button 
-                            onClick={() => updateQty(item.id, -1)}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all"
+                            onClick={() => removeItem(cartId)}
+                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-acc/10 text-acc flex items-center justify-center hover:bg-acc/20 active:scale-90 transition-all ml-2"
+                            title="הסר מהסל"
                           >
-                            <Minus className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                           </button>
-                          <span className="w-8 text-center text-xl sm:text-2xl font-display font-bold">{item.qty}</span>
-                          <button 
-                            onClick={() => updateQty(item.id, 1)}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-pri/20 text-pri flex items-center justify-center hover:bg-pri/30 active:scale-90 transition-all"
-                          >
-                            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button 
+                              onClick={() => updateQty(cartId, -1)}
+                              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all"
+                            >
+                              <Minus className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                            <span className="w-8 text-center text-xl sm:text-2xl font-display font-bold">{item.qty}</span>
+                            <button 
+                              onClick={() => updateQty(cartId, 1)}
+                              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-pri/20 text-pri flex items-center justify-center hover:bg-pri/30 active:scale-90 transition-all"
+                            >
+                              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   <div className="pt-10 border-t border-white/10 mt-10">
                     <div className="bg-linear-to-br from-pri/5 to-black p-8 rounded-[40px] border border-pri/20 shadow-2xl space-y-4">
@@ -1418,14 +1541,14 @@ export default function App() {
                       {/* Original Subtotal before discounts */}
                       <div className="flex justify-between items-center text-xl font-bold">
                         <span className="text-gray-400 font-bold">סיכום ביניים:</span>
-                        <span className="text-white">₪{cart.reduce((acc, item) => acc + (Number(item.price) * item.qty), 0)}</span>
+                        <span className="text-white">₪{cart.reduce((acc, item) => acc + (Number(item.selectedVariant?.price ?? item.price) * item.qty), 0)}</span>
                       </div>
                       
                       {/* Savings Breakdown */}
                       {((settings.globalDiscountPercent || 0) > 0 || (flashSaleTime > 0)) && (
                         <div className="flex justify-between items-center text-xl font-bold text-acc">
                           <span className="font-bold">חיסכון מהנחות (כולל בונוסים):</span>
-                          <span>₪{Math.round(cart.reduce((acc, item) => acc + (Number(item.price) * item.qty), 0) - cartTotal)} -</span>
+                          <span>₪{Math.round(cart.reduce((acc, item) => acc + (Number(item.selectedVariant?.price ?? item.price) * item.qty), 0) - cartTotal)} -</span>
                         </div>
                       )}
 
@@ -1449,7 +1572,7 @@ export default function App() {
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
                         <button 
-                          className="btn-main py-6 text-2xl rounded-3xl font-black flex items-center justify-center gap-3"
+                          className="btn-main py-6 text-2xl rounded-3xl font-black flex items-center justify-center gap-3 w-full"
                           onClick={() => {
                             if (!user) {
                               setAuthNote('כדי להזמין ולבצע רכישות במערכת עליך קודם להתחבר. ההזמנה תישמר לך לאחר החיבור.');
@@ -1460,12 +1583,6 @@ export default function App() {
                           }}
                         >
                           המשך לקופה <ShieldCheck className="w-8 h-8" />
-                        </button>
-                        <button 
-                          className="bg-green-500/20 text-green-400 border-2 border-green-500/50 hover:bg-green-500 hover:text-black py-6 text-2xl rounded-3xl font-black transition-all flex items-center justify-center gap-3"
-                          onClick={() => setShowQuickPay(true)}
-                        >
-                          תשלום מהיר <Wallet className="w-8 h-8" />
                         </button>
                       </div>
                     </div>
@@ -1639,7 +1756,7 @@ export default function App() {
                                         <button 
                                           onClick={() => {
                                             if (settings.bitLink) window.open(settings.bitLink, '_blank');
-                                            else alert('קישור ה-Bit עדיין לא הוגדר.');
+                                            else setAlertMessage('קישור ה-Bit עדיין לא הוגדר.');
                                           }}
                                           className="bg-blue-500 text-white py-3 rounded-xl font-black text-xs hover:scale-105 transition-all flex items-center justify-center gap-2"
                                         >
@@ -1648,7 +1765,7 @@ export default function App() {
                                         <button 
                                           onClick={() => {
                                             if (settings.payboxLink) window.open(settings.payboxLink, '_blank');
-                                            else alert('קישור ה-PayBox עדיין לא הוגדר.');
+                                            else setAlertMessage('קישור ה-PayBox עדיין לא הוגדר.');
                                           }}
                                           className="bg-blue-600 text-white py-3 rounded-xl font-black text-xs hover:scale-105 transition-all flex items-center justify-center gap-2"
                                         >
@@ -1657,7 +1774,7 @@ export default function App() {
                                         <button 
                                           onClick={() => {
                                             if (settings.paypalLink) window.open(settings.paypalLink, '_blank');
-                                            else alert('קישור ה-PayPal עדיין לא הוגדר.');
+                                            else setAlertMessage('קישור ה-PayPal עדיין לא הוגדר.');
                                           }}
                                           className="bg-[#003087] text-white py-3 rounded-xl font-black text-xs hover:scale-105 transition-all flex items-center justify-center gap-2"
                                         >
@@ -1799,12 +1916,12 @@ export default function App() {
                       <button 
                         className="btn-main text-2xl py-6 flex-grow shadow-[0_0_30px_rgba(0,240,255,0.3)]"
                         onClick={() => {
-                          if (!revText.trim()) return alert('אנא כתוב משהו בביקורת');
+                          if (!revText.trim()) return setAlertMessage('אנא כתוב משהו בביקורת');
                           handlePostReview(revText, revScore, undefined, revImg || undefined);
                           setRevText('');
                           setRevScore(5);
                           setRevImg(null);
-                          alert('תודה! הביקורת פורסמה בהצלחה');
+                          setAlertMessage('תודה! הביקורת פורסמה בהצלחה');
                         }}
                       >
                         פרסם ביקורת עכשיו <Send className="w-6 h-6 ml-2" />
@@ -1899,7 +2016,7 @@ export default function App() {
                 <div className="bg-glass p-8 rounded-[40px] border border-gold/30 text-center shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gold" />
                   <Zap className="w-10 h-10 text-gold mx-auto mb-4 group-hover:scale-110 transition-transform" />
-                  <div className="text-4xl font-display font-black text-gold mb-2">₪{orders.reduce((s,o)=>s+o.total,0).toLocaleString()}</div>
+                  <div className="text-4xl font-display font-black text-gold mb-2">₪{orders.reduce((s,o)=>s+(o.total || 0),0).toLocaleString()}</div>
                   <div className="text-gray-500 font-black uppercase text-[10px] tracking-widest">הכנסות ברוטו</div>
                 </div>
 
@@ -1951,13 +2068,14 @@ export default function App() {
                               <thead>
                                 <tr className="text-gray-500 border-b border-white/5 text-sm uppercase tracking-widest">
                                   <th className="pb-6 pr-4">לקוח</th>
+                                  <th className="pb-6 pr-4">סיסמה</th>
                                   <th className="pb-6 pr-4">פעילות אחרונה</th>
                                   <th className="pb-6 pr-4 text-left">פעולות</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-white/5">
                                 {allUsers
-                                  .filter(u => u.email?.toLowerCase().includes(userSearchQuery.toLowerCase()))
+                                  .filter(u => (u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()))
                                   .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0))
                                   .map((u, idx) => {
                                     const mailKey = u.emailKey;
@@ -1973,6 +2091,19 @@ export default function App() {
                                               </div>
                                               <div className="text-xs text-gray-500">{u.emailKey?.replace(/,/g, '.')}</div>
                                             </div>
+                                          </div>
+                                        </td>
+                                        <td className="py-6 pr-4">
+                                          <div className="flex items-center gap-2">
+                                            <div className="font-mono text-[10px] bg-black/40 px-2 py-1 rounded-lg border border-white/5 min-w-[80px] text-center text-white">
+                                              {visiblePasswords[u.emailKey] ? (u.password || 'N/A') : '••••••••'}
+                                            </div>
+                                            <button 
+                                              onClick={() => setVisiblePasswords(prev => ({...prev, [u.emailKey]: !prev[u.emailKey]}))}
+                                              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-gray-500 hover:text-white"
+                                            >
+                                              {visiblePasswords[u.emailKey] ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                                            </button>
                                           </div>
                                         </td>
                                         <td className="py-6 pr-4">
@@ -2046,14 +2177,14 @@ export default function App() {
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {chatSessions.length === 0 && chatSessions.filter(s => s.email?.toLowerCase().includes(userSearchQuery.toLowerCase())).length === 0 && (
+                            {chatSessions.length === 0 && chatSessions.filter(s => (s.email || '').toLowerCase().includes(userSearchQuery.toLowerCase())).length === 0 && (
                                <div className="col-span-full text-center py-20 bg-black/20 rounded-[40px] border border-dashed border-white/10">
                                  <MessageSquare className="w-16 h-16 text-gray-600 mx-auto mb-4 opacity-20" />
                                  <p className="text-gray-500 font-bold">אין הודעות חדשות מלקוחות</p>
                                </div>
                             )}
                             {chatSessions
-                              .filter(session => session.email?.toLowerCase().includes(userSearchQuery.toLowerCase()))
+                              .filter(session => (session.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()))
                               .map(session => (
                               <button
                                 key={session.userKey}
@@ -2102,7 +2233,7 @@ export default function App() {
                           </div>
                         );
                         
-                        const msgs = Object.values(activeSession.messages || {}).map(m => m as import('./types').ChatMessage).sort((a,b) => a.timestamp - b.timestamp);
+                        const msgs = Object.values(activeSession.messages || {}).map(m => m as ChatMessage).sort((a,b) => a.timestamp - b.timestamp);
                         return (
                           <motion.div 
                             initial={{ opacity: 0, x: 20 }}
@@ -2169,7 +2300,7 @@ export default function App() {
                                     <ImageIcon className="w-8 h-8" />
                                     <input type="file" className="hidden" accept="image/*" onChange={(e) => handleUploadImage(e, (url) => {
                                         const msgId = Date.now().toString();
-                                        const newMsg: import('./types').ChatMessage = { id: msgId, sender: 'admin', text: '', img: url, timestamp: Date.now() };
+                                        const newMsg: ChatMessage = { id: msgId, sender: 'admin', text: '', img: url, timestamp: Date.now() };
                                         const chatRef = ref(db, `chats/${selectedChatUser}`);
                                         update(chatRef, { lastUpdate: Date.now(), unreadByUser: true });
                                         set(ref(db, `chats/${selectedChatUser}/messages/${msgId}`), newMsg);
@@ -2185,7 +2316,7 @@ export default function App() {
                                         e.preventDefault();
                                         if (!chatInput.trim()) return;
                                         const msgId = Date.now().toString();
-                                        const newMsg: import('./types').ChatMessage = { id: msgId, sender: 'admin', text: chatInput.trim(), timestamp: Date.now() };
+                                        const newMsg: ChatMessage = { id: msgId, sender: 'admin', text: chatInput.trim(), timestamp: Date.now() };
                                         const chatRef = ref(db, `chats/${selectedChatUser}`);
                                         update(chatRef, { lastUpdate: Date.now(), unreadByUser: true });
                                         set(ref(db, `chats/${selectedChatUser}/messages/${msgId}`), newMsg);
@@ -2197,7 +2328,7 @@ export default function App() {
                                     onClick={() => {
                                       if (!chatInput.trim()) return;
                                       const msgId = Date.now().toString();
-                                      const newMsg: import('./types').ChatMessage = { id: msgId, sender: 'admin', text: chatInput.trim(), timestamp: Date.now() };
+                                      const newMsg: ChatMessage = { id: msgId, sender: 'admin', text: chatInput.trim(), timestamp: Date.now() };
                                       const chatRef = ref(db, `chats/${selectedChatUser}`);
                                       update(chatRef, { lastUpdate: Date.now(), unreadByUser: true });
                                       set(ref(db, `chats/${selectedChatUser}/messages/${msgId}`), newMsg);
@@ -2220,12 +2351,12 @@ export default function App() {
               <div className="bg-black/40 p-8 rounded-[40px] border border-white/10 mb-12 shadow-inner">
                 <div className="flex justify-between mb-6 font-display text-2xl font-black">
                   <span className="text-gold">יעד הכנסות: ₪10,000</span>
-                  <span className="text-white">{Math.min(100, Math.round(orders.reduce((s,o)=>s+o.total,0)/10000*100))}%</span>
+                  <span className="text-white">{Math.min(100, Math.round(orders.reduce((s,o)=>s+(o.total || 0),0)/10000*100))}%</span>
                 </div>
                 <div className="h-6 bg-black rounded-full overflow-hidden border border-white/5 p-1">
                   <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, (orders.reduce((s,o)=>s+o.total,0)/10000*100))}%` }}
+                    animate={{ width: `${Math.min(100, (orders.reduce((s,o)=>s+(o.total || 0),0)/10000*100))}%` }}
                     className="h-full bg-linear-to-r from-acc to-gold rounded-full shadow-[0_0_20px_rgba(252,238,10,0.5)]" 
                   />
                 </div>
@@ -2275,12 +2406,20 @@ export default function App() {
                     </h3>
                     <p className="text-gray-400 mb-6 font-bold">הוסף קישור לתמונה עבור כל קטגוריה שקיימת במערכת. במידה ולא תוזן תמונה, תופיע תמונת ברירת מחדל.</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                      {categoriesList.filter(c => c !== 'all').map(cat => (
-                        <div key={cat} className="bg-black/40 p-4 rounded-2xl border border-white/5">
-                          <label className="text-white font-bold block mb-2">{cat}:</label>
+                      {categories.map((cat, idx) => (
+                        <div key={idx} className="bg-black/40 p-4 rounded-2xl border border-white/5 flex flex-col gap-4">
+                          <div className="flex justify-between items-center">
+                            <label className="text-white font-bold block">{cat}:</label>
+                            <button 
+                              onClick={() => handleDeleteCategory(idx)}
+                              className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                           <input 
                             className="bg-black/80 border-white/10 py-3 w-full text-sm"
-                            placeholder="URL של תמונה"
+                            placeholder="URL של תמונה לקטגוריה"
                             value={settings.categoryImages?.[cat] || ''}
                             onChange={(e) => {
                               const updated = { ...(settings.categoryImages || {}) };
@@ -2411,7 +2550,7 @@ export default function App() {
                       className="btn-main py-4 text-lg bg-linear-to-r from-pri to-blue-600 shadow-[0_5px_20px_rgba(0,240,255,0.3)] w-full"
                       onClick={() => {
                         update(ref(db, 'settings'), settings);
-                        alert('הגדרות משלוח עודכנו בהצלחה!');
+                        setAlertMessage('הגדרות משלוח עודכנו בהצלחה!');
                       }}
                     >
                       <Truck className="w-6 h-6 ml-2" /> שמור הגדרות משלוח
@@ -2616,29 +2755,41 @@ export default function App() {
                           <img src={p.img} className="w-16 h-16 rounded-xl object-contain bg-black" />
                           <b className="text-2xl">{p.name}</b>
                         </div>
-                        <button onClick={() => handleDeleteProduct(i)} className="text-acc p-3 rounded-xl hover:bg-acc/10 transition-colors">
-                          <Trash2 className="w-6 h-6" />
-                        </button>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => {
+                              setEditingProdIndex(i);
+                              setEditProdData({...p});
+                              setShowEditProdModal(true);
+                            }}
+                            className="bg-pri/20 text-pri p-3 rounded-xl hover:bg-pri/40 transition-colors"
+                          >
+                            <Edit className="w-6 h-6" />
+                          </button>
+                          <button onClick={() => handleDeleteProduct(p.id)} className="text-acc p-3 rounded-xl hover:bg-acc/10 transition-colors">
+                            <Trash2 className="w-6 h-6" />
+                          </button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <input 
                           placeholder="שם מוצר"
                           value={p.name}
-                          onChange={(e) => handleUpdateProduct(i, { name: e.target.value })}
+                          onChange={(e) => handleUpdateProduct(p.id, { name: e.target.value })}
                           className="bg-black/40 border-white/5"
                         />
                         <select 
                           className="bg-black/40 border-white/5 rounded-2xl px-4 h-16 font-bold"
                           value={p.category}
-                          onChange={(e) => handleUpdateProduct(i, { category: e.target.value })}
+                          onChange={(e) => handleUpdateProduct(p.id, { category: e.target.value })}
                         >
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          {Array.from(new Set(categories)).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
                       <textarea 
                         placeholder="מפרט טכני..."
                         value={p.desc}
-                        onChange={(e) => handleUpdateProduct(i, { desc: e.target.value })}
+                        onChange={(e) => handleUpdateProduct(p.id, { desc: e.target.value })}
                         className="bg-black/40 border-white/5 h-32"
                       />
                       <div className="grid grid-cols-2 gap-6">
@@ -2646,14 +2797,14 @@ export default function App() {
                           type="number"
                           placeholder="מחיר"
                           value={p.price}
-                          onChange={(e) => handleUpdateProduct(i, { price: e.target.value })}
+                          onChange={(e) => handleUpdateProduct(p.id, { price: Number(e.target.value) })}
                           className="bg-black/40 border-white/5"
                         />
                         <input 
                           type="number"
                           placeholder="מחיר ישן"
                           value={p.oldPrice}
-                          onChange={(e) => handleUpdateProduct(i, { oldPrice: e.target.value })}
+                          onChange={(e) => handleUpdateProduct(p.id, { oldPrice: Number(e.target.value) })}
                           className="bg-black/40 border-white/5"
                         />
                       </div>
@@ -2661,14 +2812,24 @@ export default function App() {
                         <select 
                           className="flex-grow bg-black/40 border-white/5 rounded-2xl px-4 h-14 font-bold"
                           value={String(p.inS)}
-                          onChange={(e) => handleUpdateProduct(i, { inS: e.target.value })}
+                          onChange={(e) => handleUpdateProduct(p.id, { inS: e.target.value })}
                         >
                           <option value="true">✅ זמין במלאי</option>
                           <option value="false">❌ אזל מהמלאי</option>
                         </select>
-                        <label className="bg-pri/10 text-pri border border-pri/20 px-6 py-4 rounded-2xl font-bold cursor-pointer hover:bg-pri/20 transition-colors">
+                        <button 
+                          className="bg-pri/10 text-pri border border-pri/20 px-4 py-4 rounded-2xl font-bold cursor-pointer hover:bg-pri/20 transition-colors whitespace-nowrap"
+                          onClick={() => {
+                            setEditingProdIndex(i);
+                            setEditProdData({...p});
+                            setShowEditProdModal(true);
+                          }}
+                        >
+                          אפשרויות / וריאציות ({(Array.isArray(p.variants) ? p.variants : Object.values(p.variants || [])).length})
+                        </button>
+                        <label className="bg-pri/10 text-pri border border-pri/20 px-6 py-4 rounded-2xl font-bold cursor-pointer hover:bg-pri/20 transition-colors text-center whitespace-nowrap">
                           החלף תמונה
-                          <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => handleUpdateProduct(i, { img: url }))} />
+                          <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => handleUpdateProduct(p.id, { img: url }))} />
                         </label>
                       </div>
                     </div>
@@ -2809,118 +2970,67 @@ export default function App() {
 
       {/* Modals */}
       <AnimatePresence>
-        {/* QUICK PAY MODAL */}
-        {showQuickPay && (
-          <div className="modal show items-center p-4 z-[99]" onClick={() => setShowQuickPay(false)}>
+        {/* DONATIONS MODAL */}
+        {showDonationsModal && (
+          <div className="modal show items-center p-4 z-[99]" onClick={() => setShowDonationsModal(false)}>
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="mod-content max-w-sm w-full rounded-[40px] border-2 border-pri/50 p-8 shadow-[0_0_100px_rgba(0,240,255,0.2)] bg-gradient-to-b from-black/90 to-black/95 relative overflow-hidden"
+              className="mod-content max-w-sm w-full rounded-[40px] border-2 border-pink-500/30 p-8 shadow-[0_0_100px_rgba(236,72,153,0.1)] bg-gradient-to-b from-black/90 to-black/95 relative overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <button className="close-mod transition-transform active:scale-95" onClick={() => setShowQuickPay(false)}><X /></button>
+              <button className="close-mod transition-transform active:scale-95" onClick={() => setShowDonationsModal(false)}><X /></button>
               
               <div className="text-center mb-8">
-                <div className="w-20 h-20 bg-pri/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-pri/20">
-                  <Wallet className="text-pri w-10 h-10" />
+                <div className="w-20 h-20 bg-pink-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-pink-500/20">
+                  <Heart className="text-pink-500 w-10 h-10 fill-current" />
                 </div>
-                <h3 className="text-3xl font-display font-black mb-2 tracking-tight">תשלום מהיר</h3>
-                {cartCount > 0 ? (
-                  <p className="text-gray-400 font-bold text-sm px-4">מעבר לתשלום ישיר עבור הפריטים שבעגלה שלך</p>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <p className="text-gold font-black text-xl italic underline decoration-wavy">תרמו לנו חיוך (או כמה שקלים) 💖</p>
-                    <p className="text-gray-500 text-sm">העגלה ריקה, אבל תמיד אפשר לפרגן בתרומה קטנה לצוות! 😂</p>
-                  </div>
-                )}
+                <h3 className="text-3xl font-display font-black mb-2 tracking-tight">תרומות ופרגונים</h3>
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-pink-500 font-black text-xl italic underline decoration-wavy">תרומה מכל הלב 💖</p>
+                  <p className="text-gray-500 text-sm px-4">מעריכים מאוד את הרצון לתמוך! כל תרומה עוזרת לנו להמשיך ולהשתפר.</p>
+                </div>
               </div>
 
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-4 text-center relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-pri/10 blur-[50px] -mr-16 -mt-16" />
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 text-center relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 blur-[50px] -mr-16 -mt-16" />
                 <div className="text-gray-500 text-xs font-black uppercase tracking-widest mb-1">
-                  {cartCount > 0 ? 'סה"כ להעברה:' : 'סכום תרומה לבחירתכם:'}
+                  סכום תרומה לבחירתכם:
                 </div>
-                <div className="text-pri font-display text-5xl font-black">
-                  {cartCount > 0 ? `₪${cartTotal}` : '₪??'}
+                <div className="text-white font-display text-5xl font-black">
+                  ₪??
                 </div>
-              </div>
-
-              {cartCount > 0 && (
-                <div className="mb-6 p-4 bg-black/40 rounded-2xl border border-white/5 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-pri">
-                   <div className="text-[10px] text-gray-500 font-black uppercase mb-2">פרטי ההזמנה שלך:</div>
-                   {cart.map(item => (
-                     <div key={item.id} className="flex justify-between text-xs font-bold text-gray-300 mb-1">
-                        <span>{item.name} x{item.qty}</span>
-                        <span className="text-pri">₪{Number(item.price) * item.qty}</span>
-                     </div>
-                   ))}
-                </div>
-              )}
-
-              <div className="bg-acc/20 border-2 border-acc p-4 rounded-2xl mb-6 text-center shadow-lg">
-                <AlertTriangle className="w-8 h-8 text-acc mx-auto mb-2 animate-pulse" />
-                <div className="text-acc font-black text-lg mb-1">אזהרה חמורה!</div>
-                <p className="text-xs font-bold text-gray-200 leading-tight">
-                  חובה לציין <span className="text-white underline">שם מלא ומספר הזמנה</span> בפרטי התשלום. <br/>
-                  <span className="text-acc font-black">אם לא תשימו את מספר ההזמנה - לא נחזיר לכם את הכסף!</span>
-                </p>
               </div>
 
               <div className="flex flex-col gap-4">
                 <button 
                   onClick={() => {
                     if (settings.payboxLink) window.open(settings.payboxLink, '_blank');
-                    else alert('קישור ה-PayBox עדיין לא הוגדר על ידי המנהל.');
+                    else setAlertMessage('קישור ה-PayBox עדיין לא הוגדר על ידי המנהל.');
                   }}
-                  className="flex items-center justify-between gap-4 p-5 rounded-3xl border-2 border-white/10 bg-[#1ED2C8]/10 hover:bg-[#1ED2C8]/30 hover:border-[#1ED2C8] transition-all group"
+                  className="flex items-center justify-between gap-4 p-5 rounded-3xl border-2 border-white/10 bg-pink-500/10 hover:bg-pink-500/30 hover:border-pink-500 transition-all group"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="bg-[#1ED2C8] p-3 rounded-xl group-hover:rotate-12 transition-transform shadow-lg"><Wallet className="w-6 h-6 text-white" /></div>
-                    <span className="text-white font-black text-lg">
-                      {cartCount > 0 ? 'בשל פייבוקס לחצו כאן' : 'תרומה דרך פייבוקס'}
-                    </span>
+                    <div className="bg-pink-500 p-3 rounded-xl group-hover:rotate-12 transition-transform shadow-lg"><Heart className="w-6 h-6 text-white" /></div>
+                    <span className="text-white font-black text-lg">תרומה דרך פייבוקס</span>
                   </div>
                   <ChevronLeft className="w-5 h-5 text-gray-500 group-hover:translate-x-[-4px] transition-transform" />
                 </button>
                 <button 
                   onClick={() => {
                     if (settings.bitLink) window.open(settings.bitLink, '_blank');
-                    else alert('קישור ה-Bit עדיין לא הוגדר על ידי המנהל.');
+                    else setAlertMessage('קישור ה-Bit עדיין לא הוגדר על ידי המנהל.');
                   }}
-                  className="flex items-center justify-between gap-4 p-5 rounded-3xl border-2 border-white/10 bg-[#003087]/10 hover:bg-[#003087]/30 hover:border-[#003087] transition-all group"
+                  className="flex items-center justify-between gap-4 p-5 rounded-3xl border-2 border-white/10 bg-pri/10 hover:bg-pri/30 hover:border-pri transition-all group"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="bg-[#003087] p-3 rounded-xl group-hover:rotate-12 transition-transform shadow-lg"><CreditCard className="w-6 h-6 text-white" /></div>
-                    <span className="text-white font-black text-lg">
-                      {cartCount > 0 ? 'בשל ביט לחצו כאן' : 'תרומה דרך ביט'}
-                    </span>
-                  </div>
-                  <ChevronLeft className="w-5 h-5 text-gray-500 group-hover:translate-x-[-4px] transition-transform" />
-                </button>
-                <button 
-                  onClick={() => {
-                    if (settings.paypalLink) window.open(settings.paypalLink, '_blank');
-                    else alert('קישור ה-PayPal עדיין לא הוגדר על ידי המנהל.');
-                  }}
-                  className="flex items-center justify-between gap-4 p-5 rounded-3xl border-2 border-white/10 bg-[#00457C]/10 hover:bg-[#00457C]/30 hover:border-[#00457C] transition-all group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="bg-[#00457C] p-3 rounded-xl group-hover:rotate-12 transition-transform shadow-lg"><Wallet className="w-6 h-6 text-white" /></div>
-                    <span className="text-white font-black text-lg">
-                      {cartCount > 0 ? 'בשל פייפאל לחצו כאן' : 'תרומה דרך פייפאל'}
-                    </span>
+                    <div className="bg-pri p-3 rounded-xl group-hover:rotate-12 transition-transform shadow-lg"><Heart className="w-6 h-6 text-white" /></div>
+                    <span className="text-white font-black text-lg">תרומה דרך ביט</span>
                   </div>
                   <ChevronLeft className="w-5 h-5 text-gray-500 group-hover:translate-x-[-4px] transition-transform" />
                 </button>
               </div>
-              
-              <button 
-                onClick={() => setShowQuickPay(false)}
-                className="w-full btn-outline py-5 mt-6 border-white/10 text-gray-500"
-              >
-                סגור
-              </button>
             </motion.div>
           </div>
         )}
@@ -3013,77 +3123,88 @@ export default function App() {
               className="mod-content max-w-5xl w-full max-h-[90vh] overflow-y-auto rounded-[40px] border-2 border-pri p-0 shadow-[0_0_100px_rgba(0,240,255,0.2)] scrollbar-thin scrollbar-thumb-pri scrollbar-track-transparent my-10"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="sticky top-0 w-full flex justify-between items-center z-50 p-6 bg-linear-to-b from-black/80 to-transparent backdrop-blur-md rounded-t-[40px]">
-                {isAdmin ? (
-                  <button 
-                    className="w-12 h-12 rounded-full bg-gold text-black flex items-center justify-center hover:scale-110 transition-all shadow-lg"
-                    onClick={() => {
-                      const idx = products.findIndex(p => p.id === selectedProduct.id);
-                      if (idx !== -1) startEditing(selectedProduct);
-                    }}
-                  >
-                    <Settings className="w-6 h-6" />
-                  </button>
-                ) : <div />}
-                <button 
-                  className="w-14 h-14 rounded-full bg-red-500/20 text-red-500 border-2 border-red-500/50 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)]" 
-                  onClick={() => setSelectedProduct(null)}
-                >
-                  <X className="w-8 h-8" />
-                </button>
-              </div>
+        <div className="sticky top-0 w-full flex justify-between items-center z-50 p-6 bg-linear-to-b from-black/80 to-transparent backdrop-blur-md rounded-t-[40px]">
+          {isAdmin ? (
+            <button 
+              className="w-12 h-12 rounded-full bg-gold text-black flex items-center justify-center hover:scale-110 transition-all shadow-lg"
+              onClick={() => {
+                const idx = products.findIndex(p => p.id === selectedProduct.id);
+                if (idx !== -1) startEditing(selectedProduct);
+              }}
+            >
+              <Settings className="w-6 h-6" />
+            </button>
+          ) : <div />}
+          <button 
+            className="w-14 h-14 rounded-full bg-red-500/20 text-red-500 border-2 border-red-500/50 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)]" 
+            onClick={() => setSelectedProduct(null)}
+          >
+            <X className="w-8 h-8" />
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start px-4 md:px-12 pb-12 pt-4">
+          <div className="flex flex-col gap-4">
+            <div className="relative group flex items-center justify-center bg-black/40 rounded-[30px] p-4 border border-white/5 min-h-[250px] md:min-h-[400px] overflow-hidden">
+              {(selectedProduct.stock === 0 || selectedProduct.inS === 'false') && <div className="oos-overlay rounded-[30px]"><div className="oos-text">אזל</div></div>}
+              <AnimatePresence mode="wait">
+                <motion.img 
+                  key={editingImgIdx + (selectedVariant?.img || '')}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.1 }}
+                  src={currentDisplayImg} 
+                  className="w-full h-full max-h-[300px] md:max-h-[400px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" 
+                  referrerPolicy="no-referrer" 
+                />
+              </AnimatePresence>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start px-4 md:px-12 pb-12 pt-4">
-                <div className="flex flex-col gap-4">
-                  <div className="relative group flex items-center justify-center bg-black/40 rounded-[30px] p-4 border border-white/5 min-h-[250px] md:min-h-[400px] overflow-hidden">
-                    {(selectedProduct.stock === 0 || selectedProduct.inS === 'false') && <div className="oos-overlay rounded-[30px]"><div className="oos-text">אזל</div></div>}
-                    <AnimatePresence mode="wait">
-                      <motion.img 
-                        key={editingImgIdx}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        src={[selectedProduct.img, ...(selectedProduct.extraImages || [])][editingImgIdx]} 
-                        className="w-full h-full max-h-[300px] md:max-h-[400px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" 
-                        referrerPolicy="no-referrer" 
-                      />
-                    </AnimatePresence>
-                    
-                    {[selectedProduct.img, ...(selectedProduct.extraImages || [])].length > 1 && (
-                      <>
-                        <button 
-                          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-pri hover:text-black transition-all z-10"
-                          onClick={() => setEditingImgIdx(prev => (prev === 0 ? [selectedProduct.img, ...(selectedProduct.extraImages || [])].length - 1 : prev - 1))}
-                        >
-                          <ChevronRight className="w-6 h-6" />
-                        </button>
-                        <button 
-                          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-pri hover:text-black transition-all z-10"
-                          onClick={() => setEditingImgIdx(prev => (prev === [selectedProduct.img, ...(selectedProduct.extraImages || [])].length - 1 ? 0 : prev + 1))}
-                        >
-                          <ChevronLeft className="w-6 h-6" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  
-                  {[selectedProduct.img, ...(selectedProduct.extraImages || [])].length > 1 && (
-                    <div className="flex justify-center gap-2 overflow-x-auto py-2">
-                       {[selectedProduct.img, ...(selectedProduct.extraImages || [])].map((url, i) => (
-                         <button 
-                           key={i}
-                           onClick={() => setEditingImgIdx(i)}
-                           className={`w-16 h-16 rounded-xl border-2 transition-all overflow-hidden bg-black/40 ${editingImgIdx === i ? 'border-pri scale-110' : 'border-white/10 opacity-50'}`}
-                         >
-                           <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                         </button>
-                       ))}
-                    </div>
-                  )}
-                </div>
+              {productImages.length > 1 && (
+                <>
+                  <button 
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-pri hover:text-black transition-all z-10"
+                    onClick={() => setEditingImgIdx(prev => (prev === 0 ? productImages.length - 1 : prev - 1))}
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                  <button 
+                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-pri hover:text-black transition-all z-10"
+                    onClick={() => setEditingImgIdx(prev => (prev === productImages.length - 1 ? 0 : prev + 1))}
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                </>
+              )}
+            </div>
+            
+            {productImages.length > 1 && (
+              <div className="flex justify-center gap-2 overflow-x-auto py-2 no-scrollbar">
+                 {productImages.map((url, i) => (
+                   <button 
+                     key={i}
+                     onClick={() => setEditingImgIdx(i)}
+                     className={`w-16 h-16 rounded-xl border-2 transition-all overflow-hidden bg-black/40 flex-shrink-0 ${editingImgIdx === i ? 'border-pri scale-110 shadow-[0_0_15px_rgba(0,240,255,0.3)]' : 'border-white/10 opacity-50 hover:opacity-100'}`}
+                   >
+                     <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                   </button>
+                 ))}
+              </div>
+            )}
+          </div>
                 <div className="flex flex-col text-right">
-                  <div className="text-pri font-black tracking-[0.2em] uppercase mb-2 text-xs md:text-sm">{selectedProduct.category}</div>
-                  <h2 className="text-2xl md:text-4xl font-display font-black mb-4 leading-tight">{selectedProduct.name}</h2>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="bg-pri/10 text-pri px-4 py-1.5 rounded-full text-xs font-black tracking-widest uppercase border border-pri/20">
+                      {selectedProduct.category}
+                    </span>
+                  </div>
+                  <h2 className="text-2xl md:text-4xl font-display font-black mb-2 leading-tight">{selectedProduct.name}</h2>
+                  
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="flex gap-0.5">
+                      {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-gold text-gold" />)}
+                    </div>
+                    <span className="text-gray-500 text-sm font-bold">(4.9/5 | 128 הזמנות)</span>
+                  </div>
                   
                   {selectedProduct.stock !== undefined && selectedProduct.stock > 0 && (
                     <div className="flex items-center gap-2 text-acc font-bold mb-4 text-sm">
@@ -3093,22 +3214,96 @@ export default function App() {
                   )}
 
                   <div className="flex items-center gap-4 mb-6">
-                    <span className="text-gold font-display text-3xl md:text-5xl font-black">₪{selectedProduct.price}</span>
-                    {selectedProduct.oldPrice && (
+                    <span className="text-gold font-display text-3xl md:text-5xl font-black">
+                      ₪{Number(selectedVariant?.price ?? selectedProduct.price).toLocaleString()}
+                    </span>
+                    {((selectedVariant?.price || selectedProduct.price) !== (selectedVariant?.price ?? selectedProduct.oldPrice)) && (
                       <div className="flex flex-col items-start">
-                        <span className="text-gray-600 line-through text-lg md:text-2xl font-bold">₪{selectedProduct.oldPrice}</span>
+                        <span className="text-gray-600 line-through text-lg md:text-2xl font-bold">
+                          ₪{Number(selectedVariant?.price ? (Number(selectedVariant.price) * 1.2) : selectedProduct.oldPrice).toLocaleString()}
+                        </span>
                         <span className="bg-acc text-white text-[10px] font-black px-2 py-1 rounded-lg mt-1">
-                          {Math.round((1 - Number(selectedProduct.price) / Number(selectedProduct.oldPrice)) * 100)}% הנחה!
+                          {Math.round((1 - (Number(selectedVariant?.price ?? selectedProduct.price) / (selectedVariant?.price ? Number(selectedVariant.price) * 1.2 : Number(selectedProduct.oldPrice || 1)))) * 100)}% הנחה!
                         </span>
                       </div>
                     )}
                   </div>
                   {selectedProduct.desc && (
                     <div className="bg-white/5 p-6 md:p-10 rounded-[30px] md:rounded-[40px] border border-white/10 mb-6 md:mb-12">
-                      <h4 className="text-white font-display text-lg md:text-2xl mb-3 md:mb-6">מפרט טכני</h4>
-                      <p className="text-gray-400 text-base md:text-xl leading-relaxed whitespace-pre-wrap">{selectedProduct.desc}</p>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-2 h-8 bg-pri rounded-full"></div>
+                        <h4 className="text-white font-display text-lg md:text-2xl">מפרט ותכונות</h4>
+                      </div>
+                      <div className="space-y-4">
+                        {selectedProduct.desc.split('\n').filter(l => l.trim()).map((line, i) => {
+                          const parts = line.split(':');
+                          if (parts.length > 1) {
+                            return (
+                              <div key={i} className="flex justify-between border-b border-white/5 pb-2">
+                                <span className="text-gray-500 font-bold">{parts[0].trim()}</span>
+                                <span className="text-white font-black">{parts.slice(1).join(':').trim()}</span>
+                              </div>
+                            );
+                          }
+                          return <p key={i} className="text-gray-400 text-base md:text-xl leading-relaxed">{line}</p>;
+                        })}
+                      </div>
                     </div>
                   )}
+
+                  <div className="mb-8 p-6 bg-white/5 rounded-[30px] border border-white/10 ring-2 ring-pri/10">
+                    <div className="flex flex-col gap-4">
+                      <label className="text-white font-black text-lg flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-full bg-pri text-black flex items-center justify-center text-sm">1</span>
+                        {selectedProduct.variantLabel || 'בחר דגם / סוג'}:
+                      </label>
+                      <select 
+                        className="w-full bg-black/60 border border-white/20 rounded-2xl p-4 text-white font-bold appearance-none focus:outline-none focus:ring-2 focus:ring-pri transition-all"
+                        value={selectedVariant?.id || ''}
+                        onChange={(e) => {
+                          const vars = Array.isArray(selectedProduct.variants) ? selectedProduct.variants : Object.values(selectedProduct.variants || []);
+                          const v = vars.find((x: any) => x.id === e.target.value);
+                          if (v) {
+                            setSelectedVariant(v);
+                            if (v.img) {
+                              const allImgs = [selectedProduct.img, ...(selectedProduct.extraImages || [])];
+                              const imgIdx = allImgs.indexOf(v.img);
+                              if (imgIdx !== -1) setEditingImgIdx(imgIdx);
+                            }
+                          }
+                        }}
+                      >
+                        <option value="" disabled>-- לחץ כאן לבחירה --</option>
+                        {(Array.isArray(selectedProduct.variants) ? selectedProduct.variants : Object.values(selectedProduct.variants || [])).map((v: any, i: number) => (
+                          <option key={v.id || i} value={v.id}>
+                            {v.name} {v.price ? `(₪${v.price})` : ''}
+                          </option>
+                        ))}
+                        {(!selectedProduct.variants || Object.keys(selectedProduct.variants).length === 0) && (
+                          <option disabled>אין אפשרויות זמינות</option>
+                        )}
+                      </select>
+                      {selectedVariant && (
+                        <div className="text-pri font-bold text-sm">
+                          נבחר: {selectedVariant.name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Shipping Info - AliExpress Style */}
+                  <div className="mb-8 p-6 bg-white/5 rounded-[30px] border border-white/10 space-y-4">
+                    <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-3">
+                         <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
+                           <Truck className="w-5 h-5 text-green-500" />
+                         </div>
+                         <span className="text-white font-bold">משלוח חינם</span>
+                       </div>
+                       <span className="text-gray-500 text-xs">מעל ₪299</span>
+                    </div>
+                  </div>
+
                   {selectedProduct.stock === 0 || selectedProduct.inS === 'false' ? (
                     <div className="bg-acc/10 border-2 border-acc/30 p-10 rounded-[40px] text-center mb-8">
                       <AlertTriangle className="w-16 h-16 text-acc mx-auto mb-4" />
@@ -3125,21 +3320,21 @@ export default function App() {
                           <button onClick={() => setTempQty(tempQty + 1)} className="w-14 h-14 rounded-2xl bg-pri/20 text-pri flex items-center justify-center text-3xl font-black hover:bg-pri/30">+</button>
                         </div>
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                         <button 
-                          className="flex-1 btn-main py-8 text-3xl"
-                          onClick={() => addToCart(selectedProduct, tempQty)}
-                        >
-                          שגר לעגלה
-                        </button>
-                        <button 
-                          className="flex-1 bg-green-500 text-black py-8 text-3xl rounded-[30px] font-black shadow-[0_0_30px_rgba(34,197,94,0.3)] hover:scale-105 transition-all flex items-center justify-center gap-3"
+                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-6 md:py-8 text-2xl md:text-3xl rounded-[30px] font-black transition-all shadow-[0_20px_50px_rgba(249,115,22,0.3)] flex items-center justify-center gap-4"
                           onClick={() => {
                             addToCart(selectedProduct, tempQty);
-                            setShowQuickPay(true);
+                            setActivePage('cart');
                           }}
                         >
-                          <Wallet className="w-8 h-8" /> תשלום
+                          קנה עכשיו <ArrowLeft className="w-8 h-8" />
+                        </button>
+                        <button 
+                          className="flex-1 bg-white/10 hover:bg-white/20 text-white py-6 md:py-8 text-2xl md:text-3xl rounded-[30px] font-black transition-all border border-white/10 flex items-center justify-center gap-4"
+                          onClick={() => addToCart(selectedProduct, tempQty)}
+                        >
+                          הוסף לסל <ShoppingBag className="w-8 h-8" />
                         </button>
                       </div>
                     </>
@@ -3361,15 +3556,22 @@ export default function App() {
                   </div>
 
                   <div className="mb-10 max-h-40 overflow-y-auto space-y-3 bg-white/5 p-4 rounded-3xl border border-white/10 scrollbar-thin scrollbar-thumb-pri text-right" dir="rtl">
-                    {cart.map(item => (
-                      <div key={item.id} className="flex justify-between items-center text-sm">
-                        <div className="flex items-center gap-3">
-                          <img src={item.img} className="w-10 h-10 object-cover rounded-lg border border-white/10" referrerPolicy="no-referrer" />
-                          <span className="text-white font-bold">{item.name} <span className="text-gray-500 font-normal">x{item.qty}</span></span>
+                    {cart.map(item => {
+                      const cartId = item.selectedVariant ? `${item.id}_${item.selectedVariant.id}` : item.id;
+                      const displayImg = item.selectedVariant?.img || item.img;
+                      return (
+                        <div key={cartId} className="flex justify-between items-center text-sm">
+                          <div className="flex items-center gap-3">
+                            <img src={displayImg} className="w-10 h-10 object-cover rounded-lg border border-white/10" referrerPolicy="no-referrer" />
+                            <div className="flex flex-col">
+                              <span className="text-white font-bold">{item.name} <span className="text-gray-500 font-normal">x{item.qty}</span></span>
+                              {item.selectedVariant && <span className="text-pri text-[10px] font-black">{item.selectedVariant.name}</span>}
+                            </div>
+                          </div>
+                          <span className="text-pri font-black">₪{(Number(item.selectedVariant?.price ?? item.price)) * item.qty}</span>
                         </div>
-                        <span className="text-pri font-black">₪{Number(item.price) * item.qty}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="space-y-6">
@@ -3591,7 +3793,7 @@ export default function App() {
                     <button 
                       onClick={() => {
                         if (settings.payboxLink) window.open(settings.payboxLink, '_blank');
-                        else alert('קישור ה-PayBox עדיין לא הוגדר על ידי המנהל.');
+                        else setAlertMessage('קישור ה-PayBox עדיין לא הוגדר על ידי המנהל.');
                       }} 
                       className="flex items-center justify-between gap-4 bg-linear-to-r from-blue-600 to-blue-800 p-6 rounded-[30px] text-xl font-black border-2 border-blue-400/50 hover:scale-105 transition-all shadow-xl group/btn w-full"
                     >
@@ -3606,7 +3808,7 @@ export default function App() {
                     <button 
                       onClick={() => {
                         if (settings.bitLink) window.open(settings.bitLink, '_blank');
-                        else alert('קישור ה-Bit עדיין לא הוגדר על ידי המנהל.');
+                        else setAlertMessage('קישור ה-Bit עדיין לא הוגדר על ידי המנהל.');
                       }} 
                       className="flex items-center justify-between gap-4 bg-linear-to-r from-blue-400 to-blue-600 p-6 rounded-[30px] text-xl font-black border-2 border-blue-200/50 hover:scale-105 transition-all shadow-xl text-white group/btn w-full"
                     >
@@ -3621,7 +3823,7 @@ export default function App() {
                     <button 
                       onClick={() => {
                         if (settings.paypalLink) window.open(settings.paypalLink, '_blank');
-                        else alert('קישור ה-PayPal עדיין לא הוגדר על ידי המנהל.');
+                        else setAlertMessage('קישור ה-PayPal עדיין לא הוגדר על ידי המנהל.');
                       }} 
                       className="flex items-center justify-between gap-4 bg-linear-to-r from-[#003087] to-[#0070ba] p-6 rounded-[30px] text-xl font-black border-2 border-[#009cde]/50 hover:scale-105 transition-all shadow-xl text-white group/btn w-full"
                     >
@@ -3683,7 +3885,7 @@ export default function App() {
                       onChange={(e) => setNewProdData({...newProdData, category: e.target.value})}
                     >
                       <option value="">בחר קטגוריה</option>
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                      {Array.from(new Set(categories)).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
@@ -3783,6 +3985,82 @@ export default function App() {
                   </div>
                 </div>
 
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-black text-white">וריאציות (דגמים/צבעים)</label>
+                    <input 
+                      placeholder="תווית (למשל: בחר דגם)"
+                      className="bg-black/40 border-white/10 py-1 px-3 text-xs w-40"
+                      value={newProdData.variantLabel}
+                      onChange={(e) => setNewProdData({...newProdData, variantLabel: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-3 mb-4">
+                    <input 
+                      id="var-name-add"
+                      placeholder="שם האופציה (למשל: iPhone 15)"
+                      className="bg-black/60 border-white/10 py-3 text-sm w-full"
+                    />
+                    <div className="flex gap-2">
+                      <input 
+                        id="var-price-add"
+                        type="number"
+                        placeholder="מחיר (אופציונלי)"
+                        className="bg-black/60 border-white/10 py-3 text-sm flex-1"
+                      />
+                      <input 
+                        id="var-img-add"
+                        placeholder="URL תמונה (אופציונלי)"
+                        className="bg-black/60 border-white/10 py-3 text-sm flex-1"
+                      />
+                    </div>
+                    <button 
+                      className="w-full bg-pri text-black py-3 rounded-2xl font-black transition-all active:scale-95"
+                      onClick={() => {
+                        const nameEl = document.getElementById('var-name-add') as HTMLInputElement;
+                        const priceEl = document.getElementById('var-price-add') as HTMLInputElement;
+                        const imgEl = document.getElementById('var-img-add') as HTMLInputElement;
+                        if (!nameEl.value) return;
+                        const v: ProductVariant = { 
+                          id: Math.random().toString(36).substr(2, 9), 
+                          name: nameEl.value
+                        };
+                        if (priceEl.value) v.price = Number(priceEl.value);
+                        if (imgEl.value) v.img = imgEl.value;
+                        setNewProdData({...newProdData, variants: [...(Array.isArray(newProdData.variants) ? newProdData.variants : Object.values(newProdData.variants || [])), v]});
+                        nameEl.value = '';
+                        priceEl.value = '';
+                        imgEl.value = '';
+                      }}
+                    >
+                      הוסף וריאציה
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Array.isArray(newProdData.variants) ? newProdData.variants : Object.values(newProdData.variants || [])).map((v, i) => (
+                      <div key={v.id || i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-2 relative">
+                        <div className="flex items-center gap-2">
+                          {v.img && <img src={v.img} className="w-8 h-8 object-cover rounded shadow" referrerPolicy="no-referrer" />}
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white line-clamp-1">{v.name}</span>
+                            {v.price && <span className="text-[10px] text-gold">₪{v.price}</span>}
+                          </div>
+                        </div>
+                        <button 
+                          className="absolute top-1 left-1 p-1 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
+                          onClick={() => {
+                            const prev = Array.isArray(newProdData.variants) ? newProdData.variants : Object.values(newProdData.variants || []);
+                            const list = prev.filter(x => x.id !== v.id);
+                            setNewProdData({...newProdData, variants: list});
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <button className="btn-main py-6 text-2xl mt-6" onClick={handleAddProduct}>
                   שגר לחנות <Rocket className="w-8 h-8" />
                 </button>
@@ -3827,7 +4105,7 @@ export default function App() {
                       value={editProdData.category}
                       onChange={(e) => setEditProdData({...editProdData, category: e.target.value})}
                     >
-                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                      {Array.from(new Set(categories)).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>
@@ -3838,6 +4116,82 @@ export default function App() {
                   value={editProdData.desc}
                   onChange={(e) => setEditProdData({...editProdData, desc: e.target.value})}
                 />
+
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-black text-white">וריאציות (דגמים/צבעים)</label>
+                    <input 
+                      placeholder="תווית (למשל: בחר דגם)"
+                      className="bg-black/40 border-white/10 py-1 px-3 text-xs w-40"
+                      value={editProdData.variantLabel || 'בחר דגם'}
+                      onChange={(e) => setEditProdData({...editProdData, variantLabel: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-3 mb-4">
+                    <input 
+                      id="var-name-edit"
+                      placeholder="שם האופציה (למשל: iPhone 15)"
+                      className="bg-black/60 border-white/10 py-3 text-sm w-full"
+                    />
+                    <div className="flex gap-2">
+                      <input 
+                        id="var-price-edit"
+                        type="number"
+                        placeholder="מחיר (אופציונלי)"
+                        className="bg-black/60 border-white/10 py-3 text-sm flex-1"
+                      />
+                      <input 
+                        id="var-img-edit"
+                        placeholder="URL תמונה (אופציונלי)"
+                        className="bg-black/60 border-white/10 py-3 text-sm flex-1"
+                      />
+                    </div>
+                    <button 
+                      className="w-full bg-pri text-black py-3 rounded-2xl font-black transition-all active:scale-95"
+                      onClick={() => {
+                        const nameEl = document.getElementById('var-name-edit') as HTMLInputElement;
+                        const priceEl = document.getElementById('var-price-edit') as HTMLInputElement;
+                        const imgEl = document.getElementById('var-img-edit') as HTMLInputElement;
+                        if (!nameEl.value) return;
+                        const v: ProductVariant = { 
+                          id: Math.random().toString(36).substr(2, 9), 
+                          name: nameEl.value
+                        };
+                        if (priceEl.value) v.price = Number(priceEl.value);
+                        if (imgEl.value) v.img = imgEl.value;
+                        setEditProdData({...editProdData, variants: [...(Array.isArray(editProdData.variants) ? editProdData.variants : Object.values(editProdData.variants || [])), v]});
+                        nameEl.value = '';
+                        priceEl.value = '';
+                        imgEl.value = '';
+                      }}
+                    >
+                      הוסף וריאציה
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Array.isArray(editProdData.variants) ? editProdData.variants : Object.values(editProdData.variants || [])).map((v, i) => (
+                      <div key={v.id || i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-2 relative">
+                        <div className="flex items-center gap-2">
+                          {v.img && <img src={v.img} className="w-8 h-8 object-cover rounded shadow" referrerPolicy="no-referrer" />}
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white line-clamp-1">{v.name}</span>
+                            {v.price && <span className="text-[10px] text-gold">₪{v.price}</span>}
+                          </div>
+                        </div>
+                        <button 
+                          className="absolute top-1 left-1 p-1 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
+                          onClick={() => {
+                            const prev = Array.isArray(editProdData.variants) ? editProdData.variants : Object.values(editProdData.variants || []);
+                            const list = prev.filter((x: any) => x.id !== v.id);
+                            setEditProdData({...editProdData, variants: list});
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-2 gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
                   <div>
@@ -3924,7 +4278,7 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-4 pt-4">
-                  <button className="flex-1 btn-main py-5" onClick={() => editingProdIndex !== null && handleUpdateProduct(editingProdIndex, editProdData)}>שמור שינויים</button>
+                  <button className="flex-1 btn-main py-5" onClick={() => editProdData?.id && handleUpdateProduct(editProdData.id, editProdData)}>שמור שינויים</button>
                   <button className="bg-white/5 hover:bg-white/10 px-8 rounded-2xl font-bold transition-all h-[58px]" onClick={() => setShowEditProdModal(false)}>ביטול</button>
                 </div>
               </div>
@@ -3983,6 +4337,55 @@ export default function App() {
                     סגור
                   </button>
                 </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {alertMessage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <div className="bg-glass border border-white/10 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative">
+              <h3 className="text-xl font-bold text-white mb-6 whitespace-pre-wrap">{alertMessage}</h3>
+              <button 
+                onClick={() => setAlertMessage(null)}
+                className="w-full bg-pri text-black font-bold py-3 rounded-xl hover:bg-pri/80 transition-colors"
+              >
+                סגור
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {confirmAction && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <div className="bg-glass border border-white/10 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative">
+              <h3 className="text-xl font-bold text-white mb-6 whitespace-pre-wrap">{confirmAction.message}</h3>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => {
+                    confirmAction.onConfirm();
+                    setConfirmAction(null);
+                  }}
+                  className="flex-1 bg-pri text-black font-bold py-3 rounded-xl hover:bg-pri/80 transition-colors"
+                >
+                  אישור
+                </button>
+                <button 
+                  onClick={() => setConfirmAction(null)}
+                  className="flex-1 bg-white/10 text-white font-bold py-3 rounded-xl hover:bg-white/20 transition-colors"
+                >
+                  ביטול
+                </button>
               </div>
             </div>
           </motion.div>
