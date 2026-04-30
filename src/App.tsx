@@ -195,6 +195,7 @@ export default function App() {
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [selectedCustomOptions, setSelectedCustomOptions] = useState<Record<string, string>>({});
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [tempQty, setTempQty] = useState(1);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
@@ -222,6 +223,7 @@ export default function App() {
       setTempQty(1);
       setEditingImgIdx(0);
       setSelectedVariant(null);
+      setSelectedCustomOptions({});
     }
   }, [selectedProduct]);
 
@@ -242,7 +244,8 @@ export default function App() {
     stock: -1, 
     shippingCost: 0,
     variants: [] as ProductVariant[],
-    variantLabel: 'בחר דגם'
+    variantLabel: 'בחר דגם',
+    customOptions: [] as { title: string; choices: string[] }[]
   });
   const [newCatName, setNewCatName] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -592,11 +595,19 @@ export default function App() {
     }
   }, [user]);
 
-  const addToCart = (product: Product, qty: number = 1, variant?: ProductVariant | null) => {
+  const getCartId = (item: CartItem): string => {
+    const optsKeys = Object.keys(item.selectedOptions || {}).sort();
+    const optsStr = optsKeys.map(k => `${k}:${item.selectedOptions![k]}`).join('|');
+    return `${item.id}_${item.selectedVariant ? item.selectedVariant.id : 'base'}_${optsStr}`;
+  };
+
+  const addToCart = (product: Product, qty: number = 1, variant?: ProductVariant | null, optionsObj?: Record<string, string>) => {
     if (!product) return;
     const itemVariant = variant || selectedVariant;
+    const itemOpts = optionsObj || selectedCustomOptions;
     
     const hasVariants = product.variants && Object.keys(product.variants).length > 0;
+    const hasCustomOptions = product.customOptions && product.customOptions.length > 0;
     
     // If product has variants but none selected, require one
     if (hasVariants && !itemVariant) {
@@ -604,14 +615,21 @@ export default function App() {
       return;
     }
 
-    const cartId = itemVariant ? `${product.id}_${itemVariant.id}` : product.id;
+    if (hasCustomOptions) {
+      const missing = product.customOptions!.find(opt => !itemOpts[opt.title]);
+      if (missing) {
+        setAlertMessage(`נא לבחור ${missing.title}`);
+        return;
+      }
+    }
+
+    const newCartItem: CartItem = { ...product, qty: 1, selectedVariant: itemVariant || undefined, selectedOptions: Object.keys(itemOpts).length > 0 ? itemOpts : undefined };
+    const cartId = getCartId(newCartItem);
+
     const currentStock = product.stock !== undefined ? product.stock : (product.inS === 'false' ? 0 : -1);
     
     setCart(prev => {
-      const existing = prev.find(item => {
-        const existingId = item.selectedVariant ? `${item.id}_${item.selectedVariant.id}` : item.id;
-        return existingId === cartId;
-      });
+      const existing = prev.find(item => getCartId(item) === cartId);
       let newCart;
       
       if (existing) {
@@ -621,22 +639,24 @@ export default function App() {
           return prev;
         }
         newCart = prev.map(item => {
-          const existingId = item.selectedVariant ? `${item.id}_${item.selectedVariant.id}` : item.id;
-          return existingId === cartId ? { ...item, qty: totalQty } : item;
+          return getCartId(item) === cartId ? { ...item, qty: totalQty } : item;
         });
       } else {
         if (currentStock !== -1 && qty > currentStock) {
           setAlertMessage(`מצטערים, נשארו רק ${currentStock} יחידות במלאי`);
           return prev;
         }
-        newCart = [...prev, { ...product, qty, selectedVariant: itemVariant || undefined }];
+        newCart = [...prev, { ...newCartItem, qty }];
       }
       
       if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), JSON.parse(JSON.stringify(newCart)));
       localStorage.setItem('sc_cart', JSON.stringify(newCart));
       return newCart;
     });
-    setAuthNote(`התווסף לסל: ${product.name}${itemVariant ? ` (${itemVariant.name})` : ''}`);
+    
+    const sortedOptsKeys = Object.keys(itemOpts).sort();
+    const optsLabels = sortedOptsKeys.length > 0 ? ` (${sortedOptsKeys.map(k => itemOpts[k]).join(', ')})` : '';
+    setAuthNote(`התווסף לסל: ${product.name}${itemVariant ? ` (${itemVariant.name})` : ''}${optsLabels}`);
     setSelectedProduct(null);
   };
 
@@ -655,10 +675,7 @@ export default function App() {
 
   const updateQty = (cartId: string, delta: number) => {
     setCart(prev => {
-      const item = prev.find(i => {
-        const iId = i.selectedVariant ? `${i.id}_${i.selectedVariant.id}` : i.id;
-        return iId === cartId;
-      });
+      const item = prev.find(i => getCartId(i) === cartId);
       if (!item) return prev;
       
       const currentStock = item.stock !== undefined ? item.stock : (item.inS === 'false' ? 0 : -1);
@@ -670,8 +687,7 @@ export default function App() {
       }
 
       const newCart = prev.map(i => {
-        const iId = i.selectedVariant ? `${i.id}_${i.selectedVariant.id}` : i.id;
-        if (iId === cartId) {
+        if (getCartId(i) === cartId) {
           return newQty > 0 ? { ...i, qty: newQty } : null;
         }
         return i;
@@ -685,10 +701,7 @@ export default function App() {
 
   const removeItem = (cartId: string) => {
     setCart(prev => {
-      const newCart = prev.filter(i => {
-        const iId = i.selectedVariant ? `${i.id}_${i.selectedVariant.id}` : i.id;
-        return iId !== cartId;
-      });
+      const newCart = prev.filter(i => getCartId(i) !== cartId);
       if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), JSON.parse(JSON.stringify(newCart)));
       localStorage.setItem('sc_cart', JSON.stringify(newCart));
       return newCart;
@@ -770,7 +783,15 @@ export default function App() {
     
     setCheckoutError(null);
     const id = 'SC-' + Math.floor(Math.random() * 9000 + 1000);
-    const itemsStr = cart.map(x => `${x.name}${x.selectedVariant ? ` (${x.selectedVariant.name})` : ''} (x${x.qty})`).join(', ');
+    const itemsStr = cart.map(x => {
+      let opts = [];
+      if (x.selectedVariant) opts.push(x.selectedVariant.name);
+      if (x.selectedOptions) {
+        Object.entries(x.selectedOptions).forEach(([k, v]) => opts.push(`${k}: ${v}`));
+      }
+      const optsStr = opts.length > 0 ? ` (${opts.join(', ')})` : '';
+      return `${x.name}${optsStr} (x${x.qty})`;
+    }).join(', ');
     const fullAddress = `${checkoutData.city}, ${checkoutData.street}`;
     
     let totalWithShipping = cartTotal + currentShippingCost;
@@ -1541,7 +1562,7 @@ export default function App() {
                   </div>
 
                   {cart.map(item => {
-                    const cartId = item.selectedVariant ? `${item.id}_${item.selectedVariant.id}` : item.id;
+                    const cartId = getCartId(item);
                     const displayImg = item.selectedVariant?.img || item.img;
                     const displayPrice = item.selectedVariant?.price ?? item.price;
                     return (
@@ -1556,7 +1577,14 @@ export default function App() {
                               {item.selectedVariant.name}
                             </div>
                           )}
-                          <div className="text-gold font-display text-xl sm:text-2xl">₪{displayPrice}</div>
+                          {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                            <div className="text-gray-400 text-xs mt-1 space-y-1">
+                              {Object.entries(item.selectedOptions).map(([k, v]) => (
+                                <div key={k}>{k}: <span className="text-white">{v}</span></div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="text-gold font-display text-xl sm:text-2xl mt-1">₪{displayPrice}</div>
                         </div>
                         <div className="flex items-center gap-4 bg-black/40 p-2 rounded-2xl border border-white/5 w-full sm:w-auto justify-center">
                           <button 
@@ -3313,45 +3341,67 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="mb-8 p-6 bg-white/5 rounded-[30px] border border-white/10 ring-2 ring-pri/10">
-                    <div className="flex flex-col gap-4">
-                      <label className="text-white font-black text-lg flex items-center gap-2">
-                        <span className="w-8 h-8 rounded-full bg-pri text-black flex items-center justify-center text-sm">1</span>
-                        {selectedProduct.variantLabel || 'בחר דגם / סוג'}:
-                      </label>
-                      <select 
-                        className="w-full bg-black/60 border border-white/20 rounded-2xl p-4 text-white font-bold appearance-none focus:outline-none focus:ring-2 focus:ring-pri transition-all"
-                        value={selectedVariant?.id || ''}
-                        onChange={(e) => {
-                          const vars = Array.isArray(selectedProduct.variants) ? selectedProduct.variants : Object.values(selectedProduct.variants || []);
-                          const v = vars.find((x: any) => x.id === e.target.value);
-                          if (v) {
-                            setSelectedVariant(v);
-                            if (v.img) {
-                              const allImgs = [selectedProduct.img, ...(selectedProduct.extraImages || [])];
-                              const imgIdx = allImgs.indexOf(v.img);
-                              if (imgIdx !== -1) setEditingImgIdx(imgIdx);
+                  {selectedProduct.variants && Object.keys(selectedProduct.variants).length > 0 && (
+                    <div className="mb-8 p-6 bg-white/5 rounded-[30px] border border-white/10 ring-2 ring-pri/10">
+                      <div className="flex flex-col gap-4">
+                        <label className="text-white font-black text-lg flex items-center gap-2">
+                          <span className="w-8 h-8 rounded-full bg-pri text-black flex items-center justify-center text-sm">1</span>
+                          {selectedProduct.variantLabel || 'בחר דגם / סוג'}:
+                        </label>
+                        <select 
+                          className="w-full bg-black/60 border border-white/20 rounded-2xl p-4 text-white font-bold appearance-none focus:outline-none focus:ring-2 focus:ring-pri transition-all"
+                          value={selectedVariant?.id || ''}
+                          onChange={(e) => {
+                            const vars = Array.isArray(selectedProduct.variants) ? selectedProduct.variants : Object.values(selectedProduct.variants || []);
+                            const v = vars.find((x: any) => x.id === e.target.value);
+                            if (v) {
+                              setSelectedVariant(v);
+                              if (v.img) {
+                                const allImgs = [selectedProduct.img, ...(selectedProduct.extraImages || [])];
+                                const imgIdx = allImgs.indexOf(v.img);
+                                if (imgIdx !== -1) setEditingImgIdx(imgIdx);
+                              }
                             }
-                          }
-                        }}
-                      >
-                        <option value="" disabled>-- לחץ כאן לבחירה --</option>
-                        {(Array.isArray(selectedProduct.variants) ? selectedProduct.variants : Object.values(selectedProduct.variants || [])).map((v: any, i: number) => (
-                          <option key={v.id || i} value={v.id}>
-                            {v.name} {v.price ? `(₪${v.price})` : ''}
-                          </option>
-                        ))}
-                        {(!selectedProduct.variants || Object.keys(selectedProduct.variants).length === 0) && (
-                          <option disabled>אין אפשרויות זמינות</option>
+                          }}
+                        >
+                          <option value="" disabled>-- לחץ כאן לבחירה --</option>
+                          {(Array.isArray(selectedProduct.variants) ? selectedProduct.variants : Object.values(selectedProduct.variants || [])).map((v: any, i: number) => (
+                            <option key={v.id || i} value={v.id}>
+                              {v.name} {v.price ? `(₪${v.price})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedVariant && (
+                          <div className="text-pri font-bold text-sm">
+                            נבחר: {selectedVariant.name}
+                          </div>
                         )}
-                      </select>
-                      {selectedVariant && (
-                        <div className="text-pri font-bold text-sm">
-                          נבחר: {selectedVariant.name}
-                        </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {selectedProduct.customOptions && selectedProduct.customOptions.length > 0 && (
+                    <div className="mb-8 space-y-4">
+                      {selectedProduct.customOptions.map((opt, i) => (
+                        <div key={i} className="p-6 bg-white/5 rounded-[30px] border border-white/10 ring-2 ring-pri/10">
+                          <label className="text-white font-black text-lg flex items-center gap-2 mb-4">
+                            <span className="w-8 h-8 rounded-full bg-pri text-black flex items-center justify-center text-sm">{i + (selectedProduct.variants && Object.keys(selectedProduct.variants).length > 0 ? 2 : 1)}</span>
+                            {opt.title}:
+                          </label>
+                          <select 
+                            className="w-full bg-black/60 border border-white/20 rounded-2xl p-4 text-white font-bold appearance-none focus:outline-none focus:ring-2 focus:ring-pri transition-all"
+                            value={selectedCustomOptions[opt.title] || ''}
+                            onChange={(e) => setSelectedCustomOptions({...selectedCustomOptions, [opt.title]: e.target.value})}
+                          >
+                            <option value="" disabled>-- לחץ כאן לבחירה --</option>
+                            {opt.choices.map((choice, j) => (
+                              <option key={j} value={choice}>{choice}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Shipping Info - AliExpress Style */}
                   <div className="mb-8 p-6 bg-white/5 rounded-[30px] border border-white/10 space-y-4">
@@ -3619,7 +3669,7 @@ export default function App() {
 
                   <div className="mb-10 max-h-40 overflow-y-auto space-y-3 bg-white/5 p-4 rounded-3xl border border-white/10 scrollbar-thin scrollbar-thumb-pri text-right" dir="rtl">
                     {cart.map(item => {
-                      const cartId = item.selectedVariant ? `${item.id}_${item.selectedVariant.id}` : item.id;
+                      const cartId = getCartId(item);
                       const displayImg = item.selectedVariant?.img || item.img;
                       return (
                         <div key={cartId} className="flex justify-between items-center text-sm">
@@ -3628,6 +3678,11 @@ export default function App() {
                             <div className="flex flex-col">
                               <span className="text-white font-bold">{item.name} <span className="text-gray-500 font-normal">x{item.qty}</span></span>
                               {item.selectedVariant && <span className="text-pri text-[10px] font-black">{item.selectedVariant.name}</span>}
+                              {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                                <span className="text-gray-400 text-[10px]">
+                                  {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(', ')}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <span className="text-pri font-black">₪{(Number(item.selectedVariant?.price ?? item.price)) * item.qty}</span>
@@ -4123,6 +4178,62 @@ export default function App() {
                   </div>
                 </div>
 
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-black text-white">אפשרויות בחירה נוספות (צבע, חומר וכד')</label>
+                  </div>
+                  <div className="space-y-3 mb-4 bg-white/5 p-4 rounded-2xl">
+                    <input 
+                      id="opt-title-add"
+                      placeholder="שם האופציה (למשל: צבע או חומר)"
+                      className="bg-black/60 border-white/10 py-3 text-sm w-full"
+                    />
+                    <input 
+                      id="opt-choices-add"
+                      placeholder="אפשרויות מופרדות בפסיק (למשל: אדום, כחול, ירוק)"
+                      className="bg-black/60 border-white/10 py-3 text-sm w-full"
+                    />
+                    <button 
+                      className="w-full bg-white/10 hover:bg-pri text-white hover:text-black py-3 rounded-2xl font-black transition-all active:scale-95"
+                      onClick={() => {
+                        const titleEl = document.getElementById('opt-title-add') as HTMLInputElement;
+                        const choicesEl = document.getElementById('opt-choices-add') as HTMLInputElement;
+                        if (!titleEl.value || !choicesEl.value) return;
+                        const choices = choicesEl.value.split(',').map(s => s.trim()).filter(Boolean);
+                        if (choices.length === 0) return;
+                        setNewProdData({
+                          ...newProdData, 
+                          customOptions: [...(newProdData.customOptions || []), { title: titleEl.value, choices }]
+                        });
+                        titleEl.value = '';
+                        choicesEl.value = '';
+                      }}
+                    >
+                      הוסף אפשרויות בחירה
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {(newProdData.customOptions || []).map((opt, i) => (
+                      <div key={i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-bold text-white block">{opt.title}</span>
+                          <span className="text-xs text-gray-400">{opt.choices.join(', ')}</span>
+                        </div>
+                        <button 
+                          className="p-2 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
+                          onClick={() => {
+                            const list = [...(newProdData.customOptions || [])];
+                            list.splice(i, 1);
+                            setNewProdData({...newProdData, customOptions: list});
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <button className="btn-main py-6 text-2xl mt-6" onClick={handleAddProduct}>
                   שגר לחנות <Rocket className="w-8 h-8" />
                 </button>
@@ -4249,6 +4360,62 @@ export default function App() {
                           }}
                         >
                           <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-black text-white">אפשרויות בחירה נוספות (צבע, חומר וכד')</label>
+                  </div>
+                  <div className="space-y-3 mb-4 bg-white/5 p-4 rounded-2xl">
+                    <input 
+                      id="opt-title-edit"
+                      placeholder="שם האופציה (למשל: צבע או חומר)"
+                      className="bg-black/60 border-white/10 py-3 text-sm w-full"
+                    />
+                    <input 
+                      id="opt-choices-edit"
+                      placeholder="אפשרויות מופרדות בפסיק (למשל: אדום, כחול, ירוק)"
+                      className="bg-black/60 border-white/10 py-3 text-sm w-full"
+                    />
+                    <button 
+                      className="w-full bg-white/10 hover:bg-pri text-white hover:text-black py-3 rounded-2xl font-black transition-all active:scale-95"
+                      onClick={() => {
+                        const titleEl = document.getElementById('opt-title-edit') as HTMLInputElement;
+                        const choicesEl = document.getElementById('opt-choices-edit') as HTMLInputElement;
+                        if (!titleEl.value || !choicesEl.value) return;
+                        const choices = choicesEl.value.split(',').map(s => s.trim()).filter(Boolean);
+                        if (choices.length === 0) return;
+                        setEditProdData({
+                          ...editProdData, 
+                          customOptions: [...(editProdData.customOptions || []), { title: titleEl.value, choices }]
+                        });
+                        titleEl.value = '';
+                        choicesEl.value = '';
+                      }}
+                    >
+                      הוסף אפשרויות בחירה
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {(editProdData.customOptions || []).map((opt, i) => (
+                      <div key={i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-bold text-white block">{opt.title}</span>
+                          <span className="text-xs text-gray-400">{opt.choices.join(', ')}</span>
+                        </div>
+                        <button 
+                          className="p-2 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
+                          onClick={() => {
+                            const list = [...(editProdData.customOptions || [])];
+                            list.splice(i, 1);
+                            setEditProdData({...editProdData, customOptions: list});
+                          }}
+                        >
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     ))}

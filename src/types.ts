@@ -21,11 +21,13 @@ export interface Product {
   shippingCost?: number;
   variants?: ProductVariant[];
   variantLabel?: string; // e.g. "Select Model", "Color", etc.
+  customOptions?: { title: string; choices: string[] }[];
 }
 
 export interface CartItem extends Product {
   qty: number;
   selectedVariant?: ProductVariant;
+  selectedOptions?: Record<string, string>;
 }
 
 export interface Order {
