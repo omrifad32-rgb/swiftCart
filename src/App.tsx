@@ -402,6 +402,21 @@ export default function App() {
           setProducts(productsList as Product[]);
       } else {
         setProducts([
+          {
+            id: 'prod_custom_1',
+            name: 'מוצר מעוצב אישית',
+            price: 150,
+            oldPrice: 199,
+            category: 'אביזרים',
+            img: 'https://plus.unsplash.com/premium_photo-1675896041697-d86bca70dfec?w=400&h=400&auto=format&fit=crop',
+            desc: 'מוצר איכותי במיוחד שניתן להתאים בדיוק לסטייל ולצורך שלכם – גם בצבע, וגם בחומר ממנו עשוי! בחרו מה שאתם רוצים.',
+            stock: 100,
+            inS: true,
+            customOptions: [
+              { title: 'צבע', choices: ['שחור', 'לבן', 'כחול עמוק', 'אדום'] },
+              { title: 'חומר', choices: ['עור', 'סיליקון', 'פלסטיק קשיח', 'בד קטיפה'] }
+            ]
+          },
           { 
             id: '1', 
             name: 'קסדת רכיבה Elite V1', 
