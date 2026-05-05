@@ -21,7 +21,7 @@ export interface Product {
   shippingCost?: number;
   variants?: ProductVariant[];
   variantLabel?: string; // e.g. "Select Model", "Color", etc.
-  customOptions?: { title: string; choices: string[] }[];
+  customOptions?: { title: string; choices: any[] }[];
 }
 
 export interface CartItem extends Product {

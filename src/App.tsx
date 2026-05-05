@@ -7,6 +7,7 @@
 import { useState, useEffect, useMemo, useRef, ChangeEvent } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set, push, update, remove, get } from 'firebase/database';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from 'firebase/auth';
 import { 
   Home, 
   Zap, 
@@ -88,6 +89,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
 
 export default function App() {
   const [activePage, setActivePage] = useState<'catalog' | 'cart' | 'orders' | 'reviews' | 'admin' | 'support' | 'home' | string>('home');
@@ -167,9 +169,11 @@ export default function App() {
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'reg'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'reg' | 'forgot' | 'verify'>('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPass, setAuthPass] = useState('');
+  const [authCodeInput, setAuthCodeInput] = useState('');
+  const [generatedCode, setGeneratedCode] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAddProdModal, setShowAddProdModal] = useState(false);
   const [showDonationsModal, setShowDonationsModal] = useState(false);
@@ -725,25 +729,112 @@ export default function App() {
 
   const handleAuth = () => {
     const email = authEmail.toLowerCase().trim();
+    if (!email) return;
+
+    if (authMode === 'forgot') {
+      const mailKey = email.replace(/\./g, ',');
+      
+      const triggerReset = () => {
+        sendPasswordResetEmail(auth, email)
+          .then(() => {
+            if (authEmail === 'omrifad32@gmail.com') {
+              setAuthNote(`נשלח נסיון שחזור. הבוס יקר: אם עדיין לא יצרת את החשבון במסוף החדש, המייל לא יישלח באמת! הפתרון הכי מהיר: פשוט עשה ״הרשמה״ עם אימייל זה וסיסמה חדשה.`);
+            } else {
+              setAuthNote(`מייל לשחזור סיסמה נשלח אל ${email}. אנא בדוק גם בתיקיית הספאם (הודעות זבל). הערה: אם חשבונך לא קיים במערכת, המייל לא באמת יישלח.`);
+            }
+            setTimeout(() => {
+              setAuthMode('login');
+              setAuthNote(null);
+            }, 8000);
+          })
+          .catch((error: any) => {
+            if (error.code === 'auth/user-not-found') {
+              setAuthNote("המשתמש לא נמצא במערכת. בדוק שהאימייל תקין או פתח חשבון חדש.");
+            } else if (error.code === 'auth/invalid-email') {
+              setAuthNote("כתובת האימייל אינה תקינה.");
+            } else if (error.code === 'auth/configuration-not-found') {
+              setAuthNote("שגיאת הגדרות: עליך להיכנס למסוף Firebase, לעבור אל 'Authentication', ללחוץ על 'Get Started' ולהפעיל את 'Email/Password'.");
+            } else {
+              setAuthNote("שגיאה במערכת: " + (error.code || error.message));
+            }
+          });
+      };
+
+      // Check if user exists in legacy DB first to migrate them if needed
+      get(ref(db, `users/${mailKey}`)).then((snapshot) => {
+        const pass = (snapshot.exists() && snapshot.val().password) ? snapshot.val().password : Math.random().toString(36).slice(-10) + 'Aa1#';
+        
+        // Attempt creation just to be absolutely sure they exist in Firebase Auth so the email actually sends!
+        createUserWithEmailAndPassword(auth, email, pass).then(() => {
+          if (!snapshot.exists()) {
+            set(ref(db, `users/${mailKey}`), { email, password: pass, lastActive: Date.now() });
+          }
+          triggerReset();
+        }).catch(() => {
+          // Already migrated or error - send reset anyway
+          triggerReset();
+        });
+      }).catch(() => {
+        triggerReset();
+      });
+      return;
+    }
+
     const pass = authPass;
-    if (!email || pass.length < 6) return;
+    if (pass.length < 6) return;
 
-    const mailKey = email.replace(/\./g, ',');
-    const userRef = ref(db, `users/${mailKey}`);
-
-    onValue(userRef, (snapshot) => {
-      const val = snapshot.val();
-      if (authMode === 'login') {
-        if (val && val.password === pass) {
+    if (authMode === 'login') {
+      signInWithEmailAndPassword(auth, email, pass)
+        .then((userCredential) => {
+          const mailKey = email.replace(/\./g, ',');
+          const userRef = ref(db, `users/${mailKey}`);
+          update(userRef, { lastActive: Date.now() });
+          
           setUser(email);
           setShowAuthModal(false);
-        }
-      } else {
-        if (!val) {
+          setAuthEmail('');
+          setAuthPass('');
+          setAuthNote(null);
+        })
+        .catch((error: any) => {
+          let msg = error.message; // Default real message
+          if (error.code === 'auth/user-not-found') msg = 'משתמש לא נמצא';
+          if (error.code === 'auth/wrong-password') msg = 'סיסמה שגויה';
+          if (error.code === 'auth/invalid-credential') msg = 'פרטי התחברות שגויים';
+          if (error.code === 'auth/configuration-not-found') msg = "שגיאת הגדרות: עליך להפעיל Email/Password במסוף Firebase (תחת Authentication).";
+          
+          // Fallback check for old DB users seamlessly logging in!
+          const mailKey = email.replace(/\./g, ',');
+          const userRef = ref(db, `users/${mailKey}`);
+          get(userRef).then((snapshot) => {
+            const val = snapshot.val();
+            if (val && val.password === pass) {
+              // Legacy login path!!
+              setUser(email);
+              setShowAuthModal(false);
+              setAuthEmail('');
+              setAuthPass('');
+              setAuthNote(null);
+              // Migrate in background
+              createUserWithEmailAndPassword(auth, email, pass).catch(() => {});
+            } else {
+              setAuthNote(msg);
+            }
+          });
+        });
+    } else if (authMode === 'reg') {
+      createUserWithEmailAndPassword(auth, email, pass)
+        .then((userCredential) => {
+          const mailKey = email.replace(/\./g, ',');
+          const userRef = ref(db, `users/${mailKey}`);
           set(userRef, { email, password: pass, lastActive: Date.now() });
+          
           setUser(email);
           setShowAuthModal(false);
-          // Auto-send welcome message
+          setAuthEmail('');
+          setAuthPass('');
+          setAuthNote(null);
+          
           push(ref(db, `chats/${mailKey}`), {
             id: Date.now(),
             sender: 'admin',
@@ -751,14 +842,33 @@ export default function App() {
             time: Date.now(),
             isAdmin: true
           });
-        } else {
-          // Update last active even for existing users on login
-          update(userRef, { lastActive: Date.now() });
-          setUser(email);
-          setShowAuthModal(false);
-        }
-      }
-    }, { onlyOnce: true });
+        })
+        .catch((error: any) => {
+          let msg = error.message; // Actual error message
+          if (error.code === 'auth/email-already-in-use') msg = 'כתובת האימייל כבר בשימוש';
+          if (error.code === 'auth/weak-password') msg = 'הסיסמה חלשה מדי';
+          if (error.code === 'auth/configuration-not-found') msg = "שגיאת הגדרות: עליך להפעיל Email/Password במסוף Firebase (תחת Authentication).";
+          
+          const mailKey = email.replace(/\./g, ',');
+          get(ref(db, `users/${mailKey}`)).then((snapshot) => {
+             if (!snapshot.exists()) {
+                if (error.code === 'auth/operation-not-allowed') {
+                   // Auth disabled in panel? Fallback to DB!
+                   set(ref(db, `users/${mailKey}`), { email, password: pass, lastActive: Date.now() });
+                   setUser(email);
+                   setShowAuthModal(false);
+                   setAuthEmail('');
+                   setAuthPass('');
+                   setAuthNote(null);
+                } else {
+                   setAuthNote(msg);
+                }
+             } else {
+                setAuthNote('כתובת האימייל כבר קיימת במערכת.');
+             }
+          });
+        });
+    }
   };
 
   const handleLogout = () => {
@@ -1477,7 +1587,7 @@ export default function App() {
                       <button 
                         onClick={(e) => { 
                           e.stopPropagation(); 
-                          if (p.variants && Object.keys(p.variants).length > 0) {
+                          if ((p.variants && Object.keys(p.variants).length > 0) || (p.customOptions && p.customOptions.length > 0)) {
                             setSelectedProduct(p);
                           } else {
                             addToCart(p, 1); 
@@ -3015,7 +3125,7 @@ export default function App() {
                                   </div>
                                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                                     <div className="text-xs text-gray-500 mb-2 uppercase tracking-widest font-black">פירוט הזמנה:</div>
-                                    <div className="text-white font-bold">{order.items}</div>
+                                    <div className="text-white font-bold leading-relaxed" dangerouslySetInnerHTML={{ __html: order.items.replace(/, /g, '<br>') }} />
                                     <div className="mt-3 pt-3 border-t border-white/5 flex justify-between items-center">
                                       <span className="text-gray-400">סה"כ לתשלום:</span>
                                       <span className="text-gold font-display text-xl">₪{order.total}</span>
@@ -3141,78 +3251,154 @@ export default function App() {
         )}
 
         {showAuthModal && (
-          <div className="modal show items-center p-4" onClick={() => setShowAuthModal(false)}>
+          <div className="modal show items-center overflow-auto p-4 flex" onClick={() => setShowAuthModal(false)}>
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 50 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 50 }}
-              className="mod-content max-w-md"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className={`relative w-full max-w-[450px] m-auto rounded-3xl p-8 md:p-10 shadow-xl ${localTheme === 'light' ? 'bg-white border border-gray-200' : 'bg-[#202124] border border-[#3c4043]'}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <button className="close-mod" onClick={() => { setShowAuthModal(false); setAuthNote(null); }}><X /></button>
+              <button 
+                className={`absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${localTheme === 'light' ? 'text-gray-500 hover:bg-gray-100' : 'text-[#9aa0a6] hover:bg-[#3c4043]'}`} 
+                onClick={() => { setShowAuthModal(false); setAuthNote(null); setAuthMode('login'); }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
               {!user ? (
-                <>
-                  <div className="text-center mb-10">
-                    <User className="w-20 h-20 text-pri mx-auto mb-4" />
-                    <h2 className="text-4xl font-display font-black">אזור אישי וניהול</h2>
+                <div className="flex flex-col h-full mt-2">
+                  <div className="text-center mb-6">
+                    <div className="flex justify-center mb-4">
+                      {/* Colorful generic icon to emulate Google style but rounder */}
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${localTheme === 'light' ? 'bg-[#e8f0fe]' : 'bg-blue-100'}`}>
+                        <ShieldCheck className={`w-7 h-7 ${localTheme === 'light' ? 'text-[#1a73e8]' : 'text-[#8ab4f8]'}`} />
+                      </div>
+                    </div>
+                    <h2 className={`text-[26px] font-normal leading-tight mb-2 ${localTheme === 'light' ? 'text-[#202124]' : 'text-[#e8eaed]'}`} style={{ fontFamily: 'sans-serif' }}>
+                      {authMode === 'login' ? 'התחברות' : authMode === 'reg' ? 'יצירת חשבון' : 'שחזור סיסמה'}
+                    </h2>
+                    <p className={`text-[16px] font-normal ${localTheme === 'light' ? 'text-[#202124]' : 'text-[#e8eaed]'}`} style={{ fontFamily: 'sans-serif' }}>
+                       {authMode === 'forgot' ? 'הזן את האימייל לשחזור' : 'המשך לאתר ' + settings.title}
+                    </p>
                     {authNote && (
                       <motion.div 
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="mt-6 p-4 bg-pri/10 border border-pri/20 rounded-2xl text-pri font-bold text-sm shadow-[0_5px_15px_rgba(0,240,255,0.1)]"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="mt-4 text-[#d93025] flex items-center justify-center gap-2 text-[14px] font-medium bg-[#fce8e6] px-4 py-2 rounded-2xl"
                       >
-                        {authNote}
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-right">{authNote}</span>
                       </motion.div>
                     )}
                   </div>
-                  <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 mb-8">
+                  
+                  <div className="space-y-4 mb-4">
+                    {authMode !== 'verify' && (
+                      <div className={`relative border rounded-2xl px-4 py-2 focus-within:ring-2 focus-within:ring-[#1a73e8] focus-within:border-[#1a73e8] overflow-hidden transition-all ${localTheme === 'light' ? 'border-[#dadce0] bg-transparent' : 'border-[#5f6368] bg-[#202124] focus-within:ring-[#8ab4f8] focus-within:border-[#8ab4f8]'}`}>
+                        <label className={`block text-[13px] font-medium mb-1 ${localTheme === 'light' ? 'text-[#5f6368]' : 'text-[#9aa0a6]'}`}>אימייל</label>
+                        <input 
+                          type="email" 
+                          className={`w-full bg-transparent border-none p-0 focus:ring-0 text-[16px] outline-none ${localTheme === 'light' ? 'text-[#202124]' : 'text-[#e8eaed]'}`}
+                          value={authEmail}
+                          onChange={(e) => setAuthEmail(e.target.value)}
+                          dir="ltr"
+                          placeholder="name@example.com"
+                        />
+                      </div>
+                    )}
+                    
+                    {(authMode === 'login' || authMode === 'reg') && (
+                      <div className={`relative border rounded-2xl px-4 py-2 focus-within:ring-2 focus-within:ring-[#1a73e8] focus-within:border-[#1a73e8] overflow-hidden transition-all ${localTheme === 'light' ? 'border-[#dadce0] bg-transparent' : 'border-[#5f6368] bg-[#202124] focus-within:ring-[#8ab4f8] focus-within:border-[#8ab4f8]'}`}>
+                        <label className={`block text-[13px] font-medium mb-1 ${localTheme === 'light' ? 'text-[#5f6368]' : 'text-[#9aa0a6]'}`}>
+                          סיסמה {authMode === 'reg' && '(מומלץ 6+ תווים)'}
+                        </label>
+                        <input 
+                          type="password" 
+                          className={`w-full bg-transparent border-none p-0 focus:ring-0 text-[16px] outline-none tracking-widest ${localTheme === 'light' ? 'text-[#202124]' : 'text-[#e8eaed]'}`}
+                          value={authPass}
+                          onChange={(e) => setAuthPass(e.target.value)}
+                          dir="ltr"
+                          placeholder="••••••••"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {authMode === 'login' && (
+                    <div className="mb-6 flex justify-start">
+                      <button 
+                        onClick={() => { setAuthMode('forgot'); setAuthNote(null); }} 
+                        className={`text-[14px] font-medium hover:bg-[#e8f0fe] px-4 py-1.5 rounded-full transition-colors ${localTheme === 'light' ? 'text-[#1a73e8]' : 'text-[#8ab4f8]'}`}
+                      >
+                        שכחת את הסיסמה?
+                      </button>
+                    </div>
+                  )}
+
+                  {authMode !== 'login' && (
+                    <div className="mb-6 flex justify-start">
+                      <button 
+                        onClick={() => { setAuthMode('login'); setAuthNote(null); }} 
+                        className={`text-[14px] font-medium hover:bg-[#e8f0fe] px-4 py-1.5 rounded-full transition-colors ${localTheme === 'light' ? 'text-[#1a73e8]' : 'text-[#8ab4f8]'}`}
+                      >
+                        חזרה להתחברות
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between mt-auto">
                     <button 
-                      className={`flex-1 py-4 rounded-xl font-black transition-all ${authMode === 'login' ? 'bg-pri text-black shadow-lg' : 'text-gray-500'}`}
-                      onClick={() => setAuthMode('login')}
+                      className={`text-[14px] font-medium px-4 py-2.5 rounded-full hover:bg-[#e8f0fe] transition-colors ${localTheme === 'light' ? 'text-[#1a73e8]' : 'text-[#8ab4f8]'}`}
+                      onClick={() => { setAuthMode(authMode === 'login' ? 'reg' : 'login'); setAuthNote(null); }}
                     >
-                      התחברות
+                      {authMode === 'login' ? 'יצירת חשבון' : (authMode === 'reg' ? 'כניסה לחשבון' : '')}
                     </button>
                     <button 
-                      className={`flex-1 py-4 rounded-xl font-black transition-all ${authMode === 'reg' ? 'bg-pri text-black shadow-lg' : 'text-gray-500'}`}
-                      onClick={() => setAuthMode('reg')}
+                      className={`text-[14px] font-medium px-8 py-2.5 rounded-full transition-colors ${localTheme === 'light' ? 'bg-[#1a73e8] hover:bg-[#1557b0] text-white' : 'bg-[#8ab4f8] hover:bg-[#93bcf8] text-[#202124]'}`}
+                      onClick={handleAuth}
+                      disabled={
+                        (authMode === 'login' && (!authEmail || authPass.length < 6)) || 
+                        (authMode === 'reg' && (!authEmail || authPass.length < 6)) ||
+                        (authMode === 'forgot' && !authEmail)
+                      }
+                      style={{ 
+                        opacity: (
+                          (authMode === 'login' && (!authEmail || authPass.length < 6)) || 
+                          (authMode === 'reg' && (!authEmail || authPass.length < 6)) ||
+                          (authMode === 'forgot' && !authEmail)
+                        ) ? 0.6 : 1 
+                      }}
                     >
-                      הרשמה
+                      הבא
                     </button>
                   </div>
-                  <div className="space-y-4">
-                    <input 
-                      type="email" 
-                      placeholder="אימייל..." 
-                      className="bg-black/60 border-white/10"
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                    />
-                    <input 
-                      type="password" 
-                      placeholder="סיסמה (6+ תווים)" 
-                      className="bg-black/60 border-white/10"
-                      value={authPass}
-                      onChange={(e) => setAuthPass(e.target.value)}
-                    />
-                    <button className="btn-main text-xl py-5 mt-4" onClick={handleAuth}>
-                      {authMode === 'login' ? 'כניסה' : 'צור חשבון'}
-                    </button>
-                  </div>
-                </>
+                </div>
               ) : (
-                <div className="text-center">
-                  <UserCheck className="w-20 h-20 text-green-400 mx-auto mb-4" />
-                  <h3 className="text-3xl font-black text-white mb-2">מחובר למערכת</h3>
-                  <p className="text-gray-500 mb-10 font-bold">{user}</p>
-                  <button 
-                    className="btn-outline w-full py-4 mb-4 border-white/20 text-white"
-                    onClick={() => { setShowAuthModal(false); setActivePage('orders'); }}
-                  >
-                    צפייה בהזמנות שלי
-                  </button>
-                  <button className="btn-delete w-full py-4" onClick={handleLogout}>
-                    <LogOut className="inline w-5 h-5 ml-2" /> יציאה מהמערכת
-                  </button>
+                <div className="flex flex-col items-center justify-center py-6">
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 ${localTheme === 'light' ? 'bg-[#e8f0fe]' : 'bg-blue-100'}`}>
+                    <UserCheck className={`w-10 h-10 ${localTheme === 'light' ? 'text-[#1a73e8]' : 'text-[#1a73e8]'}`} />
+                  </div>
+                  <h3 className={`text-2xl font-normal mb-2 ${localTheme === 'light' ? 'text-[#202124]' : 'text-[#e8eaed]'}`} style={{ fontFamily: 'sans-serif' }}>מחובר למערכת</h3>
+                  <div className={`px-4 py-1.5 rounded-full border mb-8 text-sm flex items-center gap-2 ${localTheme === 'light' ? 'border-[#dadce0] bg-[#f8f9fa] text-[#3c4043]' : 'border-[#5f6368] text-[#e8eaed]'}`}>
+                    <User className="w-3.5 h-3.5" />
+                    {user}
+                  </div>
+                  <div className="w-full flex flex-col gap-3">
+                    <button 
+                      className={`w-full py-2.5 rounded-[4px] font-medium transition-colors ${localTheme === 'light' ? 'bg-[#1a73e8] hover:bg-[#1557b0] text-white' : 'bg-[#8ab4f8] hover:bg-[#93bcf8] text-[#202124]'}`}
+                      onClick={() => { setShowAuthModal(false); setActivePage('orders'); }}
+                    >
+                      ההזמנות שלי
+                    </button>
+                    <button 
+                      className={`w-full py-2.5 px-4 rounded-[4px] border font-medium transition-colors flex items-center justify-center gap-2 ${localTheme === 'light' ? 'border-[#dadce0] text-[#1a73e8] hover:bg-[#f8f9fa]' : 'border-[#5f6368] text-[#8ab4f8] hover:bg-[#303134]'}`} 
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="w-4 h-4" /> יציאה מהחשבון
+                    </button>
+                  </div>
                 </div>
               )}
             </motion.div>
@@ -3252,6 +3438,46 @@ export default function App() {
           <div className="flex flex-col gap-4">
             <div className="relative group flex items-center justify-center bg-black/40 rounded-[30px] p-4 border border-white/5 min-h-[250px] md:min-h-[400px] overflow-hidden">
               {(selectedProduct.stock === 0 || selectedProduct.inS === 'false') && <div className="oos-overlay rounded-[30px]"><div className="oos-text">אזל</div></div>}
+              {isAdmin && (
+                <label className="absolute top-4 left-4 bg-pri text-black p-3 rounded-full hover:bg-white transition-all cursor-pointer shadow-xl z-20 group-hover:scale-110" title="החלף תמונה זו">
+                  <ImageIcon className="w-6 h-6" />
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    onChange={(e) => handleUploadImage(e, (url) => {
+                       const hasVariantImg = !!(selectedVariant?.img && ![selectedProduct.img, ...(selectedProduct.extraImages || [])].includes(selectedVariant.img));
+                       if (hasVariantImg && editingImgIdx === 0) {
+                           // Replacing variant image
+                           const pTemp = {...selectedProduct};
+                           const vArr = Array.isArray(pTemp.variants) ? pTemp.variants : Object.values(pTemp.variants || []);
+                           const vIdx = vArr.findIndex((v: any) => v.id === selectedVariant.id);
+                           if (vIdx !== -1) {
+                               vArr[vIdx].img = url;
+                               pTemp.variants = vArr;
+                               handleUpdateProduct(pTemp.id, pTemp);
+                               setSelectedProduct(pTemp);
+                               setSelectedVariant({...selectedVariant, img: url});
+                           }
+                       } else {
+                           const baseIdx = hasVariantImg ? editingImgIdx - 1 : editingImgIdx;
+                           if (baseIdx === 0) {
+                               // Replacing main image
+                               const pTemp = { ...selectedProduct, img: url };
+                               handleUpdateProduct(pTemp.id, { img: url });
+                               setSelectedProduct(pTemp);
+                           } else {
+                               // Replacing extra image
+                               const extras = [...(selectedProduct.extraImages || [])];
+                               extras[baseIdx - 1] = url;
+                               const pTemp = { ...selectedProduct, extraImages: extras };
+                               handleUpdateProduct(pTemp.id, { extraImages: extras });
+                               setSelectedProduct(pTemp);
+                           }
+                       }
+                    })}
+                  />
+                </label>
+              )}
               <AnimatePresence mode="wait">
                 <motion.img 
                   key={editingImgIdx + (selectedVariant?.img || '')}
@@ -3264,35 +3490,76 @@ export default function App() {
                 />
               </AnimatePresence>
               
-              {productImages.length > 1 && (
+              {(productImages.length > 1 || isAdmin) && (
                 <>
-                  <button 
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-pri hover:text-black transition-all z-10"
-                    onClick={() => setEditingImgIdx(prev => (prev === 0 ? productImages.length - 1 : prev - 1))}
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                  <button 
-                    className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-pri hover:text-black transition-all z-10"
-                    onClick={() => setEditingImgIdx(prev => (prev === productImages.length - 1 ? 0 : prev + 1))}
-                  >
-                    <ChevronLeft className="w-6 h-6" />
-                  </button>
+                  {productImages.length > 1 && (
+                    <button 
+                      className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-pri hover:text-black transition-all z-10"
+                      onClick={() => setEditingImgIdx(prev => (prev === 0 ? productImages.length - 1 : prev - 1))}
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
+                  )}
+                  {productImages.length > 1 && (
+                    <button 
+                      className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-pri hover:text-black transition-all z-10"
+                      onClick={() => setEditingImgIdx(prev => (prev === productImages.length - 1 ? 0 : prev + 1))}
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                  )}
                 </>
               )}
             </div>
             
-            {productImages.length > 1 && (
+            {(productImages.length > 1 || isAdmin) && (
               <div className="flex justify-center gap-2 overflow-x-auto py-2 no-scrollbar">
                  {productImages.map((url, i) => (
-                   <button 
-                     key={i}
-                     onClick={() => setEditingImgIdx(i)}
-                     className={`w-16 h-16 rounded-xl border-2 transition-all overflow-hidden bg-black/40 flex-shrink-0 ${editingImgIdx === i ? 'border-pri scale-110 shadow-[0_0_15px_rgba(0,240,255,0.3)]' : 'border-white/10 opacity-50 hover:opacity-100'}`}
-                   >
-                     <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                   </button>
+                   <div key={i} className="relative group">
+                     <button 
+                       onClick={() => setEditingImgIdx(i)}
+                       className={`w-16 h-16 rounded-xl border-2 transition-all overflow-hidden bg-black/40 flex-shrink-0 ${editingImgIdx === i ? 'border-pri scale-110 shadow-[0_0_15px_rgba(0,240,255,0.3)]' : 'border-white/10 opacity-50 hover:opacity-100'}`}
+                     >
+                       <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                     </button>
+                     {isAdmin && i !== 0 && (
+                       <button 
+                         className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                         onClick={(e) => {
+                            e.stopPropagation();
+                            const hasVariantImg = !!(selectedVariant?.img && ![selectedProduct.img, ...(selectedProduct.extraImages || [])].includes(selectedVariant.img));
+                            const baseIdx = hasVariantImg ? i - 1 : i;
+                            if (baseIdx > 0) {
+                               const extras = [...(selectedProduct.extraImages || [])];
+                               extras.splice(baseIdx - 1, 1);
+                               const pTemp = { ...selectedProduct, extraImages: extras };
+                               handleUpdateProduct(pTemp.id, { extraImages: extras });
+                               setSelectedProduct(pTemp);
+                               if (editingImgIdx >= i) setEditingImgIdx(Math.max(0, editingImgIdx - 1));
+                            }
+                         }}
+                       >
+                         <X className="w-3 h-3" />
+                       </button>
+                     )}
+                   </div>
                  ))}
+                 {isAdmin && (
+                   <label className="w-16 h-16 rounded-xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center cursor-pointer hover:border-pri hover:text-pri text-white/50 transition-all flex-shrink-0">
+                     <Plus className="w-6 h-6" />
+                     <input 
+                       type="file" 
+                       className="hidden" 
+                       onChange={(e) => handleUploadImage(e, (url) => {
+                          const extras = [...(selectedProduct.extraImages || []), url];
+                          const pTemp = { ...selectedProduct, extraImages: extras };
+                          handleUpdateProduct(pTemp.id, { extraImages: extras });
+                          setSelectedProduct(pTemp);
+                          setEditingImgIdx(productImages.length);
+                       })}
+                     />
+                   </label>
+                 )}
               </div>
             )}
           </div>
@@ -3357,7 +3624,23 @@ export default function App() {
                   )}
 
                   {selectedProduct.variants && Object.keys(selectedProduct.variants).length > 0 && (
-                    <div className="mb-8 p-6 bg-white/5 rounded-[30px] border border-white/10 ring-2 ring-pri/10">
+                    <div className="mb-8 p-6 bg-white/5 rounded-[30px] border border-white/10 ring-2 ring-pri/10 relative">
+                      {isAdmin && (
+                        <button 
+                          className="absolute top-4 left-4 bg-pri/20 text-pri hover:bg-pri hover:text-black p-2 rounded-xl transition-colors shadow-lg flex items-center justify-center"
+                          title="ערוך מוצר זה"
+                          onClick={() => {
+                            const pIndex = products.findIndex((p) => p.id === selectedProduct.id);
+                            if (pIndex !== -1) {
+                              setEditingProdIndex(pIndex);
+                              setEditProdData(products[pIndex]);
+                              setShowEditProdModal(true);
+                            }
+                          }}
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                      )}
                       <div className="flex flex-col gap-4">
                         <label className="text-white font-black text-lg flex items-center gap-2">
                           <span className="w-8 h-8 rounded-full bg-pri text-black flex items-center justify-center text-sm">1</span>
@@ -3395,24 +3678,48 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* custom options edit handle logic below */}
                   {selectedProduct.customOptions && selectedProduct.customOptions.length > 0 && (
-                    <div className="mb-8 space-y-4">
+                    <div className="mb-8 space-y-4 relative">
+                      {isAdmin && !(selectedProduct.variants && Object.keys(selectedProduct.variants).length > 0) && (
+                        <button 
+                          className="absolute top-4 left-4 bg-pri/20 text-pri hover:bg-pri hover:text-black p-2 rounded-xl transition-colors shadow-lg flex items-center justify-center z-10"
+                          title="ערוך מוצר זה"
+                          onClick={() => {
+                            const pIndex = products.findIndex((p) => p.id === selectedProduct.id);
+                            if (pIndex !== -1) {
+                              setEditingProdIndex(pIndex);
+                              setEditProdData(products[pIndex]);
+                              setShowEditProdModal(true);
+                            }
+                          }}
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                      )}
                       {selectedProduct.customOptions.map((opt, i) => (
                         <div key={i} className="p-6 bg-white/5 rounded-[30px] border border-white/10 ring-2 ring-pri/10">
                           <label className="text-white font-black text-lg flex items-center gap-2 mb-4">
                             <span className="w-8 h-8 rounded-full bg-pri text-black flex items-center justify-center text-sm">{i + (selectedProduct.variants && Object.keys(selectedProduct.variants).length > 0 ? 2 : 1)}</span>
                             {opt.title}:
                           </label>
-                          <select 
-                            className="w-full bg-black/60 border border-white/20 rounded-2xl p-4 text-white font-bold appearance-none focus:outline-none focus:ring-2 focus:ring-pri transition-all"
-                            value={selectedCustomOptions[opt.title] || ''}
-                            onChange={(e) => setSelectedCustomOptions({...selectedCustomOptions, [opt.title]: e.target.value})}
-                          >
-                            <option value="" disabled>-- לחץ כאן לבחירה --</option>
-                            {opt.choices.map((choice, j) => (
-                              <option key={j} value={choice}>{choice}</option>
-                            ))}
-                          </select>
+                          <div className="grid grid-cols-3 gap-3">
+                            {opt.choices.map((choice: any, j: number) => {
+                               const choiceName = typeof choice === 'string' ? choice : choice.name;
+                               const choiceImg = choice.img;
+                               const isSelected = selectedCustomOptions[opt.title] === choiceName;
+                               return (
+                                 <button
+                                   key={j}
+                                   className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border-2 transition-all ${isSelected ? 'border-pri bg-pri/10 scale-105' : 'border-white/10 bg-black/40 hover:border-white/30'}`}
+                                   onClick={() => setSelectedCustomOptions({...selectedCustomOptions, [opt.title]: choiceName})}
+                                 >
+                                   {choiceImg && <img src={choiceImg} className="w-12 h-12 object-cover rounded-xl" />}
+                                   <span className={`text-sm font-bold ${isSelected ? 'text-pri' : 'text-gray-300'}`}>{choiceName}</span>
+                                 </button>
+                               );
+                            })}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -4169,27 +4476,53 @@ export default function App() {
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {(Array.isArray(newProdData.variants) ? newProdData.variants : Object.values(newProdData.variants || [])).map((v, i) => (
-                      <div key={v.id || i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-2 relative">
-                        <div className="flex items-center gap-2">
-                          {v.img && <img src={v.img} className="w-8 h-8 object-cover rounded shadow" referrerPolicy="no-referrer" />}
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-white line-clamp-1">{v.name}</span>
-                            {v.price && <span className="text-[10px] text-gold">₪{v.price}</span>}
+                    {(Array.isArray(newProdData.variants) ? newProdData.variants : Object.values(newProdData.variants || [])).map((v: any, i: number) => {
+                      const updateVariant = (key: string, value: any) => {
+                        const list = [...(Array.isArray(newProdData.variants) ? newProdData.variants : Object.values(newProdData.variants || []))];
+                        list[i] = { ...list[i], [key]: value };
+                        setNewProdData({...newProdData, variants: list});
+                      };
+                      return (
+                        <div key={v.id || i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-3 relative group">
+                          <div className="flex items-center gap-2">
+                             <label className="cursor-pointer relative shrink-0">
+                               <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
+                                 {v.img ? <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-4 h-4 text-gray-400" />}
+                               </div>
+                               <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
+                             </label>
+                             <div className="flex flex-col gap-1 w-full">
+                               <input 
+                                 className="text-xs font-bold text-white bg-transparent border-b border-white/10 focus:border-pri outline-none w-full" 
+                                 value={v.name} 
+                                 placeholder="שם וריאציה"
+                                 onChange={(e) => updateVariant('name', e.target.value)}
+                               />
+                               <div className="flex items-center text-[10px] text-gold w-full gap-1">
+                                 ₪
+                                 <input 
+                                   className="bg-transparent border-b border-white/10 focus:border-pri outline-none w-full text-gold" 
+                                   value={v.price || ''} 
+                                   placeholder="מחיר (אופציונלי)"
+                                   type="number"
+                                   onChange={(e) => updateVariant('price', e.target.value ? Number(e.target.value) : undefined)}
+                                 />
+                               </div>
+                             </div>
                           </div>
+                          <button 
+                            className="absolute top-1 left-1 p-1 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                            onClick={() => {
+                              const prev = Array.isArray(newProdData.variants) ? newProdData.variants : Object.values(newProdData.variants || []);
+                              const list = prev.filter((x: any) => x.id !== v.id);
+                              setNewProdData({...newProdData, variants: list});
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
-                        <button 
-                          className="absolute top-1 left-1 p-1 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
-                          onClick={() => {
-                            const prev = Array.isArray(newProdData.variants) ? newProdData.variants : Object.values(newProdData.variants || []);
-                            const list = prev.filter(x => x.id !== v.id);
-                            setNewProdData({...newProdData, variants: list});
-                          }}
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -4214,7 +4547,7 @@ export default function App() {
                         const titleEl = document.getElementById('opt-title-add') as HTMLInputElement;
                         const choicesEl = document.getElementById('opt-choices-add') as HTMLInputElement;
                         if (!titleEl.value || !choicesEl.value) return;
-                        const choices = choicesEl.value.split(',').map(s => s.trim()).filter(Boolean);
+                        const choices = choicesEl.value.split(',').map(s => ({ name: s.trim() })).filter(c => Boolean(c.name));
                         if (choices.length === 0) return;
                         setNewProdData({
                           ...newProdData, 
@@ -4229,21 +4562,75 @@ export default function App() {
                   </div>
                   <div className="flex flex-col gap-2">
                     {(newProdData.customOptions || []).map((opt, i) => (
-                      <div key={i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex items-center justify-between">
-                        <div>
-                          <span className="text-sm font-bold text-white block">{opt.title}</span>
-                          <span className="text-xs text-gray-400">{opt.choices.join(', ')}</span>
+                      <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-xl flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                           <input 
+                             className="text-sm font-bold text-white bg-transparent border-b border-white/20 focus:border-pri outline-none pb-1"
+                             value={opt.title}
+                             onChange={(e) => {
+                               const list = [...(newProdData.customOptions || [])];
+                               list[i].title = e.target.value;
+                               setNewProdData({...newProdData, customOptions: list});
+                             }}
+                           />
+                           <button 
+                             className="p-2 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
+                             onClick={() => {
+                               const list = [...(newProdData.customOptions || [])];
+                               list.splice(i, 1);
+                               setNewProdData({...newProdData, customOptions: list});
+                             }}
+                           >
+                             <X className="w-4 h-4" />
+                           </button>
                         </div>
-                        <button 
-                          className="p-2 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
-                          onClick={() => {
-                            const list = [...(newProdData.customOptions || [])];
-                            list.splice(i, 1);
-                            setNewProdData({...newProdData, customOptions: list});
-                          }}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                           {opt.choices.map((c, j) => {
+                              const choiceName = typeof c === 'string' ? c : c.name;
+                              const choiceImg = c.img;
+                              return (
+                                <div key={j} className="flex items-center gap-2 bg-black/40 border border-white/10 p-2 rounded-lg">
+                                  {choiceImg && <img src={choiceImg} className="w-6 h-6 object-cover rounded-md" referrerPolicy="no-referrer" />}
+                                  <input 
+                                    className="bg-transparent text-xs text-white outline-none w-20 px-1"
+                                    value={choiceName}
+                                    placeholder="שם (כחול)"
+                                    onChange={(e) => {
+                                       const list = [...(newProdData.customOptions || [])];
+                                       const oldChoices = [...list[i].choices];
+                                       const oldChoice = oldChoices[j];
+                                       oldChoices[j] = typeof oldChoice === 'string' ? { name: e.target.value } : { ...oldChoice, name: e.target.value };
+                                       list[i].choices = oldChoices;
+                                       setNewProdData({...newProdData, customOptions: list});
+                                    }}
+                                  />
+                                  <label className="cursor-pointer text-gray-400 hover:text-white" title="הוסף תמונה">
+                                    <ImageIcon className="w-4 h-4" />
+                                    <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
+                                       const list = [...(newProdData.customOptions || [])];
+                                       const oldChoices = [...list[i].choices];
+                                       const oldChoice = oldChoices[j];
+                                       oldChoices[j] = typeof oldChoice === 'string' ? { name: oldChoice, img: url } : { ...oldChoice, img: url };
+                                       list[i].choices = oldChoices;
+                                       setNewProdData({...newProdData, customOptions: list});
+                                    })} />
+                                  </label>
+                                  <button onClick={() => {
+                                       const list = [...(newProdData.customOptions || [])];
+                                       const oldChoices = [...list[i].choices];
+                                       oldChoices.splice(j, 1);
+                                       list[i].choices = oldChoices;
+                                       setNewProdData({...newProdData, customOptions: list});
+                                  }} className="text-red-500 hover:text-white"><X className="w-3 h-3" /></button>
+                                </div>
+                              );
+                           })}
+                        </div>
+                        <button onClick={() => {
+                           const list = [...(newProdData.customOptions || [])];
+                           list[i].choices = [...list[i].choices, { name: 'אופציה אישית' }];
+                           setNewProdData({...newProdData, customOptions: list});
+                        }} className="text-xs text-pri mt-1 text-right w-fit">+ הוסף בחירה פנימית</button>
                       </div>
                     ))}
                   </div>
@@ -4357,27 +4744,53 @@ export default function App() {
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {(Array.isArray(editProdData.variants) ? editProdData.variants : Object.values(editProdData.variants || [])).map((v, i) => (
-                      <div key={v.id || i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-2 relative">
-                        <div className="flex items-center gap-2">
-                          {v.img && <img src={v.img} className="w-8 h-8 object-cover rounded shadow" referrerPolicy="no-referrer" />}
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-white line-clamp-1">{v.name}</span>
-                            {v.price && <span className="text-[10px] text-gold">₪{v.price}</span>}
+                    {(Array.isArray(editProdData.variants) ? editProdData.variants : Object.values(editProdData.variants || [])).map((v: any, i: number) => {
+                      const updateVariant = (key: string, value: any) => {
+                        const list = [...(Array.isArray(editProdData.variants) ? editProdData.variants : Object.values(editProdData.variants || []))];
+                        list[i] = { ...list[i], [key]: value };
+                        setEditProdData({...editProdData, variants: list});
+                      };
+                      return (
+                        <div key={v.id || i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-3 relative group">
+                          <div className="flex items-center gap-2">
+                             <label className="cursor-pointer relative shrink-0">
+                               <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
+                                 {v.img ? <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-4 h-4 text-gray-400" />}
+                               </div>
+                               <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
+                             </label>
+                             <div className="flex flex-col gap-1 w-full">
+                               <input 
+                                 className="text-xs font-bold text-white bg-transparent border-b border-white/10 focus:border-pri outline-none w-full" 
+                                 value={v.name} 
+                                 placeholder="שם וריאציה"
+                                 onChange={(e) => updateVariant('name', e.target.value)}
+                               />
+                               <div className="flex items-center text-[10px] text-gold w-full gap-1">
+                                 ₪
+                                 <input 
+                                   className="bg-transparent border-b border-white/10 focus:border-pri outline-none w-full text-gold" 
+                                   value={v.price || ''} 
+                                   placeholder="מחיר (אופציונלי)"
+                                   type="number"
+                                   onChange={(e) => updateVariant('price', e.target.value ? Number(e.target.value) : undefined)}
+                                 />
+                               </div>
+                             </div>
                           </div>
+                          <button 
+                            className="absolute top-1 left-1 p-1 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                            onClick={() => {
+                              const prev = Array.isArray(editProdData.variants) ? editProdData.variants : Object.values(editProdData.variants || []);
+                              const list = prev.filter((x: any) => x.id !== v.id);
+                              setEditProdData({...editProdData, variants: list});
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
-                        <button 
-                          className="absolute top-1 left-1 p-1 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
-                          onClick={() => {
-                            const prev = Array.isArray(editProdData.variants) ? editProdData.variants : Object.values(editProdData.variants || []);
-                            const list = prev.filter((x: any) => x.id !== v.id);
-                            setEditProdData({...editProdData, variants: list});
-                          }}
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -4402,7 +4815,7 @@ export default function App() {
                         const titleEl = document.getElementById('opt-title-edit') as HTMLInputElement;
                         const choicesEl = document.getElementById('opt-choices-edit') as HTMLInputElement;
                         if (!titleEl.value || !choicesEl.value) return;
-                        const choices = choicesEl.value.split(',').map(s => s.trim()).filter(Boolean);
+                        const choices = choicesEl.value.split(',').map(s => ({ name: s.trim() })).filter(c => Boolean(c.name));
                         if (choices.length === 0) return;
                         setEditProdData({
                           ...editProdData, 
@@ -4417,21 +4830,75 @@ export default function App() {
                   </div>
                   <div className="flex flex-col gap-2">
                     {(editProdData.customOptions || []).map((opt, i) => (
-                      <div key={i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex items-center justify-between">
-                        <div>
-                          <span className="text-sm font-bold text-white block">{opt.title}</span>
-                          <span className="text-xs text-gray-400">{opt.choices.join(', ')}</span>
+                      <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-xl flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                           <input 
+                             className="text-sm font-bold text-white bg-transparent border-b border-white/20 focus:border-pri outline-none pb-1"
+                             value={opt.title}
+                             onChange={(e) => {
+                               const list = [...(editProdData.customOptions || [])];
+                               list[i].title = e.target.value;
+                               setEditProdData({...editProdData, customOptions: list});
+                             }}
+                           />
+                           <button 
+                             className="p-2 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
+                             onClick={() => {
+                               const list = [...(editProdData.customOptions || [])];
+                               list.splice(i, 1);
+                               setEditProdData({...editProdData, customOptions: list});
+                             }}
+                           >
+                             <X className="w-4 h-4" />
+                           </button>
                         </div>
-                        <button 
-                          className="p-2 bg-red-500/20 text-red-500 rounded-md hover:bg-red-500 hover:text-white transition-all"
-                          onClick={() => {
-                            const list = [...(editProdData.customOptions || [])];
-                            list.splice(i, 1);
-                            setEditProdData({...editProdData, customOptions: list});
-                          }}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                           {opt.choices.map((c, j) => {
+                              const choiceName = typeof c === 'string' ? c : c.name;
+                              const choiceImg = c.img;
+                              return (
+                                <div key={j} className="flex items-center gap-2 bg-black/40 border border-white/10 p-2 rounded-lg">
+                                  {choiceImg && <img src={choiceImg} className="w-6 h-6 object-cover rounded-md" referrerPolicy="no-referrer" />}
+                                  <input 
+                                    className="bg-transparent text-xs text-white outline-none w-20 px-1"
+                                    value={choiceName}
+                                    placeholder="שם (כחול)"
+                                    onChange={(e) => {
+                                       const list = [...(editProdData.customOptions || [])];
+                                       const oldChoices = [...list[i].choices];
+                                       const oldChoice = oldChoices[j];
+                                       oldChoices[j] = typeof oldChoice === 'string' ? { name: e.target.value } : { ...oldChoice, name: e.target.value };
+                                       list[i].choices = oldChoices;
+                                       setEditProdData({...editProdData, customOptions: list});
+                                    }}
+                                  />
+                                  <label className="cursor-pointer text-gray-400 hover:text-white" title="הוסף תמונה">
+                                    <ImageIcon className="w-4 h-4" />
+                                    <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
+                                       const list = [...(editProdData.customOptions || [])];
+                                       const oldChoices = [...list[i].choices];
+                                       const oldChoice = oldChoices[j];
+                                       oldChoices[j] = typeof oldChoice === 'string' ? { name: oldChoice, img: url } : { ...oldChoice, img: url };
+                                       list[i].choices = oldChoices;
+                                       setEditProdData({...editProdData, customOptions: list});
+                                    })} />
+                                  </label>
+                                  <button onClick={() => {
+                                       const list = [...(editProdData.customOptions || [])];
+                                       const oldChoices = [...list[i].choices];
+                                       oldChoices.splice(j, 1);
+                                       list[i].choices = oldChoices;
+                                       setEditProdData({...editProdData, customOptions: list});
+                                  }} className="text-red-500 hover:text-white"><X className="w-3 h-3" /></button>
+                                </div>
+                              );
+                           })}
+                        </div>
+                        <button onClick={() => {
+                           const list = [...(editProdData.customOptions || [])];
+                           list[i].choices = [...list[i].choices, { name: 'אופציה אישית' }];
+                           setEditProdData({...editProdData, customOptions: list});
+                        }} className="text-xs text-pri mt-1 text-right w-fit">+ הוסף בחירה פנימית</button>
                       </div>
                     ))}
                   </div>
