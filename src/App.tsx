@@ -266,6 +266,10 @@ export default function App() {
   const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void } | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
+  const [trashedProducts, setTrashedProducts] = useState<Product[]>([]);
+  const [trashedOrders, setTrashedOrders] = useState<Order[]>([]);
+  const [trashedReviews, setTrashedReviews] = useState<Review[]>([]);
+
   // Sync theme to body class
   useEffect(() => {
     const accepted = localStorage.getItem('sc_cookies_accepted');
@@ -536,6 +540,36 @@ export default function App() {
         setChatSessions(list.sort((a, b) => b.lastUpdate - a.lastUpdate));
       } else {
         setChatSessions([]);
+      }
+    });
+
+    onValue(ref(db, 'trash/products'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([id, val]) => ({ ...(val as Product), id }));
+        setTrashedProducts(list);
+      } else {
+        setTrashedProducts([]);
+      }
+    });
+
+    onValue(ref(db, 'trash/orders'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([id, val]) => ({ ...(val as Order), id }));
+        setTrashedOrders(list);
+      } else {
+        setTrashedOrders([]);
+      }
+    });
+
+    onValue(ref(db, 'trash/reviews'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([id, val]) => ({ ...(val as Review), id })).reverse();
+        setTrashedReviews(list);
+      } else {
+        setTrashedReviews([]);
       }
     });
 
@@ -1100,8 +1134,12 @@ export default function App() {
 
   const handleDeleteProduct = (id: string) => {
     setConfirmAction({
-      message: 'האם אתה בטוח שברצונך למחוק מוצר זה לצמיתות?',
+      message: 'האם אתה בטוח שברצונך להעביר מוצר זה לסל המחזור?',
       onConfirm: () => {
+        const p = products.find(prod => prod.id === id);
+        if (p) {
+          set(ref(db, `trash/products/${id}`), cleanPayload(p));
+        }
         const list = products.filter((p) => p.id !== id);
         set(ref(db, 'products'), cleanPayload(list));
       }
@@ -3188,6 +3226,71 @@ export default function App() {
                   )}
                 </div>
                 </div>
+                
+                {/* Trash Section */}
+                <div className="bg-glass p-8 rounded-[40px] border border-gray-600/30 shadow-2xl mt-12">
+                  <h3 className="text-gray-400 font-display text-3xl mb-8 flex items-center gap-4">
+                    <Trash2 className="w-8 h-8" /> סל מחזור (Recycle Bin)
+                  </h3>
+                  <div className="space-y-6">
+                    <div className="text-xl font-bold text-white mb-2">מוצרים שהוסרו</div>
+                    {trashedProducts.length === 0 ? <p className="text-gray-500 text-sm">אין מוצרים במחזור</p> : trashedProducts.map(p => (
+                      <div key={p.id} className="flex items-center justify-between bg-black/40 p-4 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-4">
+                           {p.img && <img src={p.img} className="w-10 h-10 rounded-md object-cover" />}
+                           <span className="text-white font-bold">{p.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <button className="bg-pri/20 text-pri px-4 py-2 rounded-xl text-sm font-bold hover:bg-pri hover:text-black transition-colors" onClick={() => {
+                             const list = [...products, p];
+                             set(ref(db, 'products'), cleanPayload(list));
+                             remove(ref(db, `trash/products/${p.id}`));
+                           }}>שחזר</button>
+                           <button className="bg-acc/20 text-acc p-2 rounded-xl text-sm font-bold hover:bg-acc hover:text-white transition-colors" title="מחק לצמיתות" onClick={() => remove(ref(db, `trash/products/${p.id}`))}>
+                             <X className="w-5 h-5"/>
+                           </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="text-xl font-bold text-white mt-8 mb-2">הזמנות שהוסרו</div>
+                    {trashedOrders.length === 0 ? <p className="text-gray-500 text-sm">אין הזמנות במחזור</p> : trashedOrders.map(o => (
+                      <div key={o.id} className="flex items-center justify-between bg-black/40 p-4 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-4">
+                           <span className="text-white font-bold">{o.name} - #{o.id.replace('SC-', '')}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button className="bg-pri/20 text-pri px-4 py-2 rounded-xl text-sm font-bold hover:bg-pri hover:text-black transition-colors" onClick={() => {
+                            set(ref(db, `orders/${o.id}`), o);
+                            remove(ref(db, `trash/orders/${o.id}`));
+                          }}>שחזר</button>
+                          <button className="bg-acc/20 text-acc p-2 rounded-xl text-sm font-bold hover:bg-acc hover:text-white transition-colors" title="מחק לצמיתות" onClick={() => remove(ref(db, `trash/orders/${o.id}`))}>
+                             <X className="w-5 h-5"/>
+                           </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="text-xl font-bold text-white mt-8 mb-2">ביקורות שהוסרו</div>
+                    {trashedReviews.length === 0 ? <p className="text-gray-500 text-sm">אין ביקורות במחזור</p> : trashedReviews.map(r => (
+                      <div key={r.id} className="flex items-center justify-between bg-black/40 p-4 rounded-xl border border-white/5">
+                        <div className="flex items-center gap-4">
+                           <span className="text-white font-bold">{r.n}</span>
+                           <span className="text-gray-400 text-xs truncate max-w-[200px]">{r.t}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <button className="bg-pri/20 text-pri px-4 py-2 rounded-xl text-sm font-bold hover:bg-pri hover:text-black transition-colors" onClick={() => {
+                             set(ref(db, `reviews/${r.id}`), r);
+                             remove(ref(db, `trash/reviews/${r.id}`));
+                           }}>שחזר</button>
+                           <button className="bg-acc/20 text-acc p-2 rounded-xl text-sm font-bold hover:bg-acc hover:text-white transition-colors" title="מחק לצמיתות" onClick={() => remove(ref(db, `trash/reviews/${r.id}`))}>
+                             <X className="w-5 h-5"/>
+                           </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
             </motion.section>
           )}
         </AnimatePresence>
@@ -3886,11 +3989,15 @@ export default function App() {
             >
               <AlertTriangle className="w-20 h-20 text-acc mx-auto mb-6" />
               <h3 className="text-3xl font-black text-white mb-4">מחיקת ביקורת</h3>
-              <p className="text-gray-400 text-lg mb-10 font-bold">האם אתה בטוח שברצונך למחוק את הביקורת לצמיתות?</p>
+              <p className="text-gray-400 text-lg mb-10 font-bold">האם אתה בטוח שברצונך להעביר את הביקורת לסל המחזור?</p>
               <div className="flex gap-4">
                 <button 
                   className="flex-1 py-4 bg-acc text-white rounded-2xl font-black hover:bg-acc/80 transition-all"
                   onClick={() => {
+                    const r = reviews.find(rev => rev.id === reviewToDelete);
+                    if (r) {
+                      set(ref(db, `trash/reviews/${reviewToDelete}`), r);
+                    }
                     remove(ref(db, `reviews/${reviewToDelete}`));
                     setReviewToDelete(null);
                   }}
@@ -3980,16 +4087,20 @@ export default function App() {
             >
               <AlertTriangle className="w-20 h-20 text-acc mx-auto mb-6" />
               <h3 className="text-3xl font-black text-white mb-4">מחיקת הזמנה</h3>
-              <p className="text-gray-400 text-lg mb-10 font-bold">האם אתה בטוח שברצונך למחוק את ההזמנה לצמיתות? פעולה זו אינה ניתנת לביטול.</p>
+              <p className="text-gray-400 text-lg mb-10 font-bold">האם אתה בטוח שברצונך להעביר את ההזמנה לסל המחזור?</p>
               <div className="flex gap-4">
                 <button 
                   className="flex-1 py-4 bg-acc text-white rounded-2xl font-black hover:bg-acc/80 transition-all"
                   onClick={() => {
+                    const o = orders.find(ord => ord.id === orderToDelete);
+                    if (o) {
+                      set(ref(db, `trash/orders/${orderToDelete}`), o);
+                    }
                     remove(ref(db, `orders/${orderToDelete}`));
                     setOrderToDelete(null);
                   }}
                 >
-                  כן, מחק לצמיתות
+                  כן, העבר לסל מחזור
                 </button>
                 <button 
                   className="flex-1 py-4 bg-white/10 text-white rounded-2xl font-black hover:bg-white/20 transition-all"
