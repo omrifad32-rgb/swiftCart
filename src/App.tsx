@@ -241,6 +241,7 @@ export default function App() {
     price: '', 
     oldPrice: '', 
     costPrice: 0, 
+    sourceLink: '',
     category: '', 
     desc: '', 
     img: '', 
@@ -943,6 +944,7 @@ export default function App() {
       email: user || 'אורח',
       status: 'התקבל',
       items: itemsStr,
+      itemsRaw: cart,
       time: Date.now(),
       usedBalance: amountFromBalance,
       paymentMethod: selectedPaymentMethod || 'כללי'
@@ -1955,7 +1957,26 @@ export default function App() {
                                   </div>
 
                                   <div className="text-gray-500 text-xs font-bold uppercase mb-4 text-right">פירוט הזמנה:</div>
-                                  <div className="text-lg leading-relaxed text-gray-300 mb-6 text-right" dangerouslySetInnerHTML={{ __html: order.items.replace(/, /g, '<br>') }} />
+                                  {order.itemsRaw ? (
+                                    <div className="mb-6 space-y-4">
+                                      {order.itemsRaw.map((item: any, idx: number) => (
+                                        <div key={idx} className="bg-black/40 p-4 rounded-2xl flex flex-col gap-2 text-right">
+                                          <div className="text-white font-bold">{item.name} <span className="text-pri">x{item.qty}</span></div>
+                                          {item.selectedVariant && <div className="text-sm text-gray-400">{settings.variantLabel || 'דגם'}: {item.selectedVariant.name}</div>}
+                                          {item.selectedOptions && Object.entries(item.selectedOptions).map(([k, v]) => (
+                                            <div key={k} className="text-sm text-gray-400">{k}: {v as string}</div>
+                                          ))}
+                                          {isAdmin && item.sourceLink && (
+                                            <a href={item.sourceLink} target="_blank" rel="noopener noreferrer" className="text-pri text-xs font-bold mt-2 flex items-center gap-1 hover:underline">
+                                              <ExternalLink className="w-3 h-3" /> קנה מהספק (דרופשיפינג)
+                                            </a>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-lg leading-relaxed text-gray-300 mb-6 text-right" dangerouslySetInnerHTML={{ __html: order.items.replace(/, /g, '<br>') }} />
+                                  )}
                                   <div className="flex justify-between items-center pt-6 border-t border-white/5" dir="rtl">
                                     <span className="text-gray-400 font-bold">סה"כ שולם:</span>
                                     <span className="text-gold font-display text-4xl font-black">₪{order.total}</span>
@@ -3136,7 +3157,22 @@ export default function App() {
                                   </div>
                                   <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                                     <div className="text-xs text-gray-500 mb-2 uppercase tracking-widest font-black">פירוט הזמנה:</div>
-                                    <div className="text-white font-bold leading-relaxed" dangerouslySetInnerHTML={{ __html: order.items.replace(/, /g, '<br>') }} />
+                                    {order.itemsRaw ? (
+                                      <div className="space-y-3">
+                                        {order.itemsRaw.map((item: any, idx: number) => (
+                                          <div key={idx} className="bg-black/40 p-3 rounded-xl flex flex-col gap-1 text-right">
+                                            <div className="text-white font-bold text-sm">{item.name} <span className="text-pri">x{item.qty}</span></div>
+                                            {item.selectedVariant && <div className="text-xs text-gray-400">{settings.variantLabel || 'דגם'}: {item.selectedVariant.name}</div>}
+                                            {item.selectedOptions && Object.entries(item.selectedOptions).map(([k, v]) => (
+                                              <div key={k} className="text-xs text-gray-400">{k}: {v as string}</div>
+                                            ))}
+                                            {/* Do NOT show sourceLink to the user */}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-white font-bold leading-relaxed" dangerouslySetInnerHTML={{ __html: order.items.replace(/, /g, '<br>') }} />
+                                    )}
                                     <div className="mt-3 pt-3 border-t border-white/5 flex justify-between items-center">
                                       <span className="text-gray-400">סה"כ לתשלום:</span>
                                       <span className="text-gold font-display text-xl">₪{order.total}</span>
@@ -4366,6 +4402,17 @@ export default function App() {
                       onChange={(e) => setNewProdData({...newProdData, costPrice: Number(e.target.value)})}
                     />
                   </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-bold text-gray-500 mb-2 block">קישור לאתר הספק (לדרופשיפינג - רק אתה רואה)</label>
+                    <input 
+                      type="url"
+                      placeholder="https://..."
+                      className="bg-black/60 border-white/10 py-4"
+                      value={newProdData.sourceLink}
+                      onChange={(e) => setNewProdData({...newProdData, sourceLink: e.target.value})}
+                      dir="ltr"
+                    />
+                  </div>
                   <div>
                     <label className="text-xs font-bold text-gray-500 mb-2 block">מחיר לפני הנחה ₪</label>
                     <input 
@@ -4932,6 +4979,17 @@ export default function App() {
                       className="bg-black/60 border-gold/30"
                       value={editProdData.costPrice}
                       onChange={(e) => setEditProdData({...editProdData, costPrice: Number(e.target.value)})}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-gray-500 mb-1 block">קישור לאתר הספק (לדרופשיפינג - רק אתה רואה)</label>
+                    <input 
+                      type="url"
+                      placeholder="https://..."
+                      className="bg-black/60 border-white/10"
+                      value={editProdData.sourceLink || ''}
+                      onChange={(e) => setEditProdData({...editProdData, sourceLink: e.target.value})}
+                      dir="ltr"
                     />
                   </div>
                   <div>

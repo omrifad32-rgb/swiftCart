@@ -11,6 +11,7 @@ export interface Product {
   price: number | string;
   oldPrice?: number | string;
   costPrice?: number; // True cost for admin profit calculations
+  sourceLink?: string; // Link for admin to buy from supplier
   img: string;
   extraImages?: string[]; // Additional images for scrolling
   category: string;
@@ -40,6 +41,7 @@ export interface Order {
   profit?: number; // Net profit for this order
   status: string;
   items: string;
+  itemsRaw?: CartItem[]; // Full cart details for admin use
   time: number;
   email?: string;
   cMsg?: string;
