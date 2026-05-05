@@ -20,6 +20,7 @@ export interface Product {
   inS?: boolean | string;
   flashSaleEligible?: boolean;
   shippingCost?: number;
+  hideAddToCart?: boolean;
   variants?: ProductVariant[];
   variantLabel?: string; // e.g. "Select Model", "Color", etc.
   customOptions?: { title: string; choices: any[] }[];
@@ -88,6 +89,14 @@ export interface ChatSession {
   unreadByAdmin: boolean;
   unreadByUser: boolean;
   messages: Record<string, ChatMessage>;
+}
+
+export interface Coupon {
+  id: string; // code
+  type: 'percent' | 'fixed';
+  value: number;
+  active: boolean;
+  minAmount?: number;
 }
 
 export interface AppSettings {

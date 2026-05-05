@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   X,
   Rocket,
+  Percent,
   Check,
   ChevronDown,
   ChevronRight,
@@ -74,7 +75,7 @@ import {
   Edit
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Product, CartItem, Order, Review, AppSettings, ContactMessage, ProductVariant, ChatMessage, ChatSession } from './types';
+import { Product, CartItem, Order, Review, AppSettings, ContactMessage, ProductVariant, ChatMessage, ChatSession, Coupon } from './types';
 
 // Firebase configuration (from user's request)
 const firebaseConfig = {
@@ -108,6 +109,10 @@ export default function App() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [coupons, setCoupons] = useState<Record<string, Coupon>>({});
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState('');
   const [admins, setAdmins] = useState<Record<string, boolean>>({});
   const [flashSaleProd, setFlashSaleProd] = useState<Product | null>(null);
   const [flashSaleTime, setFlashSaleTime] = useState(0);
@@ -342,6 +347,7 @@ export default function App() {
   useEffect(() => {
     const productsRef = ref(db, 'products');
     const settingsRef = ref(db, 'settings');
+    const couponsRef = ref(db, 'coupons');
     const adminsRef = ref(db, 'admins');
     const ordersRef = ref(db, 'orders');
     const reviewsRef = ref(db, 'reviews');
@@ -350,6 +356,11 @@ export default function App() {
     onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) setSettings(prev => ({ ...prev, ...data }));
+    });
+
+    onValue(couponsRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      setCoupons(data);
     });
 
     onValue(adminsRef, (snapshot) => {
@@ -598,13 +609,25 @@ export default function App() {
     const globalDisc = settings.globalDiscountPercent || 0;
     const flashSaleDisc = flashSaleTime > 0 ? 10 : 0;
     const totalDisc = globalDisc + flashSaleDisc;
-    const discounted = Math.max(0, Math.round(raw * (1 - totalDisc / 100)));
+    let discounted = Math.max(0, raw * (1 - totalDisc / 100));
+    
+    if (appliedCoupon && appliedCoupon.active) {
+       if (!appliedCoupon.minAmount || raw >= appliedCoupon.minAmount) {
+          if (appliedCoupon.type === 'percent') {
+             discounted = discounted * (1 - appliedCoupon.value / 100);
+          } else {
+             discounted = Math.max(0, discounted - appliedCoupon.value);
+          }
+       }
+    }
+    
+    discounted = Math.round(discounted);
     
     if (useBalanceInCheckout && userBalance > 0) {
       return Math.max(0, discounted - userBalance);
     }
     return discounted;
-  }, [cart, settings.globalDiscountPercent, flashSaleTime, useBalanceInCheckout, userBalance]);
+  }, [cart, settings.globalDiscountPercent, flashSaleTime, useBalanceInCheckout, userBalance, appliedCoupon]);
 
   const currentShippingCost = useMemo(() => {
     if (cart.length === 0) return 0;
@@ -1062,6 +1085,45 @@ export default function App() {
         .filter(([_, v]) => v !== undefined)
         .map(([k, v]) => [k, cleanPayload(v)])
     );
+  };
+
+  const handleApplyCoupon = () => {
+    setCouponError('');
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    
+    const coupon = coupons[code];
+    if (!coupon || !coupon.active) {
+      setCouponError('קופון לא תקין או פג תוקף');
+      return;
+    }
+    
+    if (coupon.minAmount) {
+       const raw = cart.reduce((acc, item) => {
+         const price = Number(item.selectedVariant?.price ?? item.price);
+         return acc + (isNaN(price) ? 0 : price) * item.qty;
+       }, 0);
+       if (raw < coupon.minAmount) {
+         setCouponError(`קופון זה תקף רק בקנייה מעל ₪${coupon.minAmount}`);
+         return;
+       }
+    }
+    
+    setAppliedCoupon(coupon);
+    setCouponInput('');
+  };
+
+  const handleAddCoupon = (code: string, type: 'percent' | 'fixed', value: number, minAmount?: number) => {
+    if (!code || !value) return;
+    set(ref(db, `coupons/${code}`), { id: code, type, value, active: true, minAmount: minAmount || 0 });
+  };
+  
+  const handleToggleCoupon = (code: string, active: boolean) => {
+    update(ref(db, `coupons/${code}`), { active });
+  };
+  
+  const handleDeleteCoupon = (code: string) => {
+    remove(ref(db, `coupons/${code}`));
   };
 
   const handleAddProduct = () => {
@@ -1623,21 +1685,23 @@ export default function App() {
                       </button>
                     )}
 
-                    <div className="absolute bottom-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0">
-                      <button 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          if ((p.variants && Object.keys(p.variants).length > 0) || (p.customOptions && p.customOptions.length > 0)) {
-                            setSelectedProduct(p);
-                          } else {
-                            addToCart(p, 1); 
-                          }
-                        }}
-                        className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-white shadow-2xl transition-all active:scale-90 bg-pri hover:bg-pri/80`}
-                      >
-                        <Plus className="w-6 h-6 md:w-8 md:h-8" />
-                      </button>
-                    </div>
+                    {!p.hideAddToCart && (
+                      <div className="absolute bottom-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0">
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if ((p.variants && Object.keys(p.variants).length > 0) || (p.customOptions && p.customOptions.length > 0)) {
+                              setSelectedProduct(p);
+                            } else {
+                              addToCart(p, 1); 
+                            }
+                          }}
+                          className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-white shadow-2xl transition-all active:scale-90 bg-pri hover:bg-pri/80`}
+                        >
+                          <Plus className="w-6 h-6 md:w-8 md:h-8" />
+                        </button>
+                      </div>
+                    )}
 
                     {p.oldPrice && Number(p.oldPrice) > Number(p.price) && (
                       <div className={`sale-tag`}>-{Math.round(100 - (Number(p.price) / Number(p.oldPrice) * 100))}%</div>
@@ -1799,6 +1863,31 @@ export default function App() {
                         <span className="text-white">₪{cart.reduce((acc, item) => acc + (Number(item.selectedVariant?.price ?? item.price) * item.qty), 0)}</span>
                       </div>
                       
+                      {/* Coupon */}
+                      <div className="flex flex-col gap-2 pt-2 pb-4 border-b border-white/5">
+                        <div className="flex gap-2">
+                           <input 
+                             type="text" 
+                             placeholder="הזן קוד קופון" 
+                             className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 text-white uppercase text-left"
+                             dir="ltr"
+                             value={couponInput}
+                             onChange={(e) => setCouponInput(e.target.value)}
+                           />
+                           <button 
+                             onClick={handleApplyCoupon}
+                             className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl hover:bg-white/20 transition-colors"
+                           >הפעל</button>
+                        </div>
+                        {couponError && <p className="text-red-400 text-sm">{couponError}</p>}
+                        {appliedCoupon && (
+                          <div className="flex justify-between text-green-400 font-bold text-sm bg-green-400/10 p-2 rounded-lg">
+                             <span>קופון {appliedCoupon.id} ({appliedCoupon.type === 'percent' ? `${appliedCoupon.value}%` : `₪${appliedCoupon.value}`}) הופעל</span>
+                             <button onClick={() => setAppliedCoupon(null)} className="text-white">X</button>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Savings Breakdown */}
                       {((settings.globalDiscountPercent || 0) > 0 || (flashSaleTime > 0)) && (
                         <div className="flex justify-between items-center text-xl font-bold text-acc">
@@ -3227,6 +3316,54 @@ export default function App() {
                 </div>
                 </div>
                 
+                {/* Coupons Section */}
+                <div className="bg-glass p-8 rounded-[40px] border border-green-500/30 shadow-2xl mt-12">
+                  <h3 className="text-green-400 font-display text-3xl mb-8 flex items-center gap-4">
+                    <Percent className="w-8 h-8" /> ניהול קופונים
+                  </h3>
+                  <div className="flex flex-col gap-4 mb-8">
+                     <div className="flex gap-4">
+                        <input type="text" id="newCouponCode" placeholder="קוד קופון (למשל: HOLIDAY20)" className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 uppercase text-left" dir="ltr" />
+                        <input type="number" id="newCouponValue" placeholder="ערך" className="w-24 bg-black/40 border border-white/10 rounded-xl px-4" />
+                        <select id="newCouponType" className="bg-black/40 border border-white/10 rounded-xl px-4">
+                           <option value="percent">אחוזים (%)</option>
+                           <option value="fixed">שקלים (₪)</option>
+                        </select>
+                        <input type="number" id="newCouponMinAmount" placeholder="מינימום קנייה (אופציונלי)" className="w-48 bg-black/40 border border-white/10 rounded-xl px-4" />
+                        <button className="bg-green-500 text-black font-bold px-6 py-2 rounded-xl" onClick={() => {
+                           const code = (document.getElementById('newCouponCode') as HTMLInputElement).value;
+                           const value = Number((document.getElementById('newCouponValue') as HTMLInputElement).value);
+                           const type = (document.getElementById('newCouponType') as HTMLSelectElement).value as 'percent' | 'fixed';
+                           const minAmount = Number((document.getElementById('newCouponMinAmount') as HTMLInputElement).value);
+                           handleAddCoupon(code, type, value, minAmount);
+                           (document.getElementById('newCouponCode') as HTMLInputElement).value = '';
+                           (document.getElementById('newCouponValue') as HTMLInputElement).value = '';
+                           (document.getElementById('newCouponMinAmount') as HTMLInputElement).value = '';
+                        }}>הוסף קופון</button>
+                     </div>
+                  </div>
+                  <div className="space-y-4">
+                     {Object.entries(coupons).map(([code, coupon]) => (
+                        <div key={code} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
+                           <div className="flex items-center gap-4">
+                              <span className="text-white font-bold text-xl uppercase">{code}</span>
+                              <span className="text-gray-400">
+                                 {coupon.type === 'percent' ? `${coupon.value}% הנחה` : `₪${coupon.value} הנחה`}
+                                 {coupon.minAmount ? ` (בקנייה מעל ₪${coupon.minAmount})` : ''}
+                              </span>
+                           </div>
+                           <div className="flex items-center gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" className="w-5 h-5 accent-green-500" checked={coupon.active} onChange={(e) => handleToggleCoupon(code, e.target.checked)} />
+                                 <span className="text-sm font-bold text-gray-300">פעיל</span>
+                              </label>
+                              <button className="text-acc hover:scale-110 transition-transform" onClick={() => handleDeleteCoupon(code)}><X className="w-6 h-6"/></button>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+                </div>
+
                 {/* Trash Section */}
                 <div className="bg-glass p-8 rounded-[40px] border border-gray-600/30 shadow-2xl mt-12">
                   <h3 className="text-gray-400 font-display text-3xl mb-8 flex items-center gap-4">
@@ -3894,6 +4031,11 @@ export default function App() {
                       <h3 className="text-4xl font-display font-black text-acc mb-2">אזל מהמלאי</h3>
                       <p className="text-gray-400 text-lg">מוצר זה אינו זמין כרגע לרכישה. נסה שוב מאוחר יותר.</p>
                     </div>
+                  ) : selectedProduct.hideAddToCart ? (
+                    <div className="bg-white/5 border-2 border-white/10 p-10 rounded-[40px] text-center mb-8">
+                      <h3 className="text-4xl font-display font-black text-white/50 mb-2">תצוגה בלבד</h3>
+                      <p className="text-gray-400 text-lg">מוצר זה אינו זמין לרכישה.</p>
+                    </div>
                   ) : (
                     <>
                       <div className="qty-selector flex items-center justify-between bg-black/60 p-4 rounded-3xl border border-white/10 mb-8">
@@ -4463,7 +4605,7 @@ export default function App() {
                   value={newProdData.name}
                   onChange={(e) => setNewProdData({...newProdData, name: e.target.value})}
                 />
-                <div className="flex gap-6">
+                <div className="flex flex-col md:flex-row gap-6">
                   <div className="flex-1">
                     <label className="text-xs font-bold text-gray-500 mb-2 block">מלאי (1- למלאי אינסופי)</label>
                     <input 
@@ -4475,9 +4617,21 @@ export default function App() {
                     />
                   </div>
                   <div className="flex-1">
+                    <label className="text-xs font-bold text-gray-500 mb-2 block">מוצר לתצוגה בלבד (הסתר הוספה לסל)</label>
+                    <label className="flex items-center gap-2 bg-black/60 border-white/10 py-4 px-4 rounded-2xl cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        className="w-5 h-5 accent-pri"
+                        checked={newProdData.hideAddToCart || false}
+                        onChange={(e) => setNewProdData({...newProdData, hideAddToCart: e.target.checked})}
+                      />
+                      <span className="text-sm font-bold text-white">תצוגה בלבד</span>
+                    </label>
+                  </div>
+                  <div className="flex-1">
                     <label className="text-xs font-bold text-gray-500 mb-2 block">קטגוריה</label>
                     <select 
-                      className="w-full bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-xl font-bold"
+                      className="w-full bg-black/60 border border-white/10 rounded-2xl py-4 px-6 text-xl font-bold h-full max-h-[62px]"
                       value={newProdData.category}
                       onChange={(e) => setNewProdData({...newProdData, category: e.target.value})}
                     >
@@ -4841,6 +4995,18 @@ export default function App() {
                       value={editProdData.stock}
                       onChange={(e) => setEditProdData({...editProdData, stock: Number(e.target.value)})}
                     />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-gray-500 mb-1 block">תצוגה בלבד</label>
+                    <label className="flex items-center gap-2 bg-black/60 border-white/10 py-4 px-4 rounded-xl cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        className="w-4 h-4 accent-pri"
+                        checked={editProdData.hideAddToCart || false}
+                        onChange={(e) => setEditProdData({...editProdData, hideAddToCart: e.target.checked})}
+                      />
+                      <span className="text-sm font-bold text-white">הסתר הוספה לסל</span>
+                    </label>
                   </div>
                    <div className="flex-1">
                     <label className="text-xs font-bold text-gray-500 mb-1 block">קטגוריה</label>
