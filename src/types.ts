@@ -93,6 +93,7 @@ export interface ChatSession {
 
 export interface Coupon {
   id: string; // code
+  name?: string; // friendly name
   type: 'percent' | 'fixed';
   value: number;
   active: boolean;

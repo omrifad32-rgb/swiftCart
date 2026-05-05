@@ -240,6 +240,7 @@ export default function App() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [lastOrderTotal, setLastOrderTotal] = useState(0);
   const [lastOrderId, setLastOrderId] = useState<string>('');
+  const [lastOrderPaymentMethod, setLastOrderPaymentMethod] = useState<string | null>(null);
   const [pendingImg, setPendingImg] = useState<string>('');
   const [newProdData, setNewProdData] = useState({ 
     name: '', 
@@ -684,11 +685,16 @@ export default function App() {
 
   const addToCart = (product: Product, qty: number = 1, variant?: ProductVariant | null, optionsObj?: Record<string, string>) => {
     if (!product) return;
-    const itemVariant = variant || selectedVariant;
-    const itemOpts = optionsObj || selectedCustomOptions;
     
     const hasVariants = product.variants && Object.keys(product.variants).length > 0;
     const hasCustomOptions = product.customOptions && product.customOptions.length > 0;
+
+    let itemVariant = variant || selectedVariant;
+    let itemOpts = optionsObj || selectedCustomOptions;
+
+    // Reset stale state properties if the product doesn't actually have variants
+    if (!hasVariants) itemVariant = null;
+    if (!hasCustomOptions) itemOpts = {};
     
     // If product has variants but none selected, require one
     if (hasVariants && !itemVariant) {
@@ -737,7 +743,7 @@ export default function App() {
     
     const sortedOptsKeys = Object.keys(itemOpts).sort();
     const optsLabels = sortedOptsKeys.length > 0 ? ` (${sortedOptsKeys.map(k => itemOpts[k]).join(', ')})` : '';
-    setAuthNote(`התווסף לסל: ${product.name}${itemVariant ? ` (${itemVariant.name})` : ''}${optsLabels}`);
+    setAlertMessage(`התווסף לסל כמות: ${qty} - ${product.name}${itemVariant ? ` (${itemVariant.name})` : ''}${optsLabels}`);
     setSelectedProduct(null);
   };
 
@@ -1016,6 +1022,7 @@ export default function App() {
 
       setLastOrderTotal(totalWithShipping);
       setLastOrderId(id);
+      setLastOrderPaymentMethod(selectedPaymentMethod);
       if (user) {
         set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), []);
       }
@@ -1113,9 +1120,9 @@ export default function App() {
     setCouponInput('');
   };
 
-  const handleAddCoupon = (code: string, type: 'percent' | 'fixed', value: number, minAmount?: number) => {
+  const handleAddCoupon = (code: string, name: string, type: 'percent' | 'fixed', value: number, minAmount?: number) => {
     if (!code || !value) return;
-    set(ref(db, `coupons/${code}`), { id: code, type, value, active: true, minAmount: minAmount || 0 });
+    set(ref(db, `coupons/${code}`), { id: code, name: name || '', type, value, active: true, minAmount: minAmount || 0 });
   };
   
   const handleToggleCoupon = (code: string, active: boolean) => {
@@ -1127,7 +1134,10 @@ export default function App() {
   };
 
   const handleAddProduct = () => {
-    if (!newProdData.name || !newProdData.price || !newProdData.img) return;
+    if (!newProdData.name || !newProdData.price || !newProdData.img) {
+       setAlertMessage('אנא מלא שם חובה, מחיר חובה ותמונה ראשית חובה');
+       return;
+    }
     setConfirmAction({
       message: 'האם אתה בטוח שברצונך להוסיף מוצר זה?',
       onConfirm: () => {
@@ -1881,9 +1891,9 @@ export default function App() {
                         </div>
                         {couponError && <p className="text-red-400 text-sm">{couponError}</p>}
                         {appliedCoupon && (
-                          <div className="flex justify-between text-green-400 font-bold text-sm bg-green-400/10 p-2 rounded-lg">
-                             <span>קופון {appliedCoupon.id} ({appliedCoupon.type === 'percent' ? `${appliedCoupon.value}%` : `₪${appliedCoupon.value}`}) הופעל</span>
-                             <button onClick={() => setAppliedCoupon(null)} className="text-white">X</button>
+                          <div className="flex justify-between text-green-400 font-bold text-sm bg-green-400/10 p-2 rounded-lg mt-2">
+                             <span>{appliedCoupon.name ? `קופון: ${appliedCoupon.name} (${appliedCoupon.id})` : `קופון ${appliedCoupon.id}`} ({appliedCoupon.type === 'percent' ? `${appliedCoupon.value}%` : `₪${appliedCoupon.value}`}) הופעל</span>
+                             <button onClick={() => setAppliedCoupon(null)} className="text-white hover:text-red-400 transition-colors">X</button>
                           </div>
                         )}
                       </div>
@@ -2094,7 +2104,7 @@ export default function App() {
                                             <div key={k} className="text-sm text-gray-400">{k}: {v as string}</div>
                                           ))}
                                           {isAdmin && item.sourceLink && (
-                                            <a href={item.sourceLink} target="_blank" rel="noopener noreferrer" className="text-pri text-xs font-bold mt-2 flex items-center gap-1 hover:underline">
+                                            <a href={item.sourceLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-pri text-xs font-bold mt-2 flex items-center gap-1 hover:underline relative z-50 pointer-events-auto">
                                               <ExternalLink className="w-3 h-3" /> קנה מהספק (דרופשיפינג)
                                             </a>
                                           )}
@@ -3322,31 +3332,46 @@ export default function App() {
                     <Percent className="w-8 h-8" /> ניהול קופונים
                   </h3>
                   <div className="flex flex-col gap-4 mb-8">
-                     <div className="flex gap-4">
-                        <input type="text" id="newCouponCode" placeholder="קוד קופון (למשל: HOLIDAY20)" className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 uppercase text-left" dir="ltr" />
-                        <input type="number" id="newCouponValue" placeholder="ערך" className="w-24 bg-black/40 border border-white/10 rounded-xl px-4" />
-                        <select id="newCouponType" className="bg-black/40 border border-white/10 rounded-xl px-4">
+                     <div className="flex flex-wrap gap-4">
+                        <input type="text" id="newCouponCode" placeholder="קוד קופון (ללקוח - אנגלית/מספרים)" className="flex-1 min-w-[200px] bg-black/40 border border-white/10 rounded-xl px-4 uppercase text-left text-white" dir="ltr" />
+                        <input type="text" id="newCouponName" placeholder="שם הקופון (למשל: סייל קיץ)" className="flex-1 min-w-[200px] bg-black/40 border border-white/10 rounded-xl px-4 text-white" />
+                        <input type="number" id="newCouponValue" placeholder="ערך" className="w-24 bg-black/40 border border-white/10 rounded-xl px-4 text-white" />
+                        <select id="newCouponType" className="bg-black/40 border border-white/10 rounded-xl px-4 text-white">
                            <option value="percent">אחוזים (%)</option>
                            <option value="fixed">שקלים (₪)</option>
                         </select>
-                        <input type="number" id="newCouponMinAmount" placeholder="מינימום קנייה (אופציונלי)" className="w-48 bg-black/40 border border-white/10 rounded-xl px-4" />
-                        <button className="bg-green-500 text-black font-bold px-6 py-2 rounded-xl" onClick={() => {
-                           const code = (document.getElementById('newCouponCode') as HTMLInputElement).value;
+                        <input type="number" id="newCouponMinAmount" placeholder="מינימום קנייה (אופציונלי)" className="w-48 bg-black/40 border border-white/10 rounded-xl px-4 text-white" />
+                        <button className="bg-green-500 text-black font-bold px-6 py-2 rounded-xl shrink-0" onClick={() => {
+                           let code = (document.getElementById('newCouponCode') as HTMLInputElement).value.trim().toUpperCase();
+                           code = code.replace(/[\.#\$\[\]]/g, ''); // Firebase path safety
+                           const name = (document.getElementById('newCouponName') as HTMLInputElement).value.trim();
                            const value = Number((document.getElementById('newCouponValue') as HTMLInputElement).value);
                            const type = (document.getElementById('newCouponType') as HTMLSelectElement).value as 'percent' | 'fixed';
                            const minAmount = Number((document.getElementById('newCouponMinAmount') as HTMLInputElement).value);
-                           handleAddCoupon(code, type, value, minAmount);
+                           
+                           if (!code) {
+                             alert('חובה להזין קוד קופון חוקי!');
+                             return;
+                           }
+                           if (!value) {
+                             alert('חובה להזין ערך הנחה!');
+                             return;
+                           }
+
+                           handleAddCoupon(code, name, type, value, minAmount);
                            (document.getElementById('newCouponCode') as HTMLInputElement).value = '';
+                           (document.getElementById('newCouponName') as HTMLInputElement).value = '';
                            (document.getElementById('newCouponValue') as HTMLInputElement).value = '';
                            (document.getElementById('newCouponMinAmount') as HTMLInputElement).value = '';
                         }}>הוסף קופון</button>
                      </div>
                   </div>
                   <div className="space-y-4">
-                     {Object.entries(coupons).map(([code, coupon]) => (
+                     {Object.entries(coupons).map(([code, coupon]: [string, any]) => (
                         <div key={code} className="flex justify-between items-center bg-black/40 p-4 rounded-2xl border border-white/5">
                            <div className="flex items-center gap-4">
-                              <span className="text-white font-bold text-xl uppercase">{code}</span>
+                              <span className="text-white font-bold text-xl uppercase select-all cursor-text">{code}</span>
+                              {coupon.name && <span className="text-pri font-bold">{coupon.name}</span>}
                               <span className="text-gray-400">
                                  {coupon.type === 'percent' ? `${coupon.value}% הנחה` : `₪${coupon.value} הנחה`}
                                  {coupon.minAmount ? ` (בקנייה מעל ₪${coupon.minAmount})` : ''}
@@ -3855,6 +3880,11 @@ export default function App() {
                     <span className="bg-pri/10 text-pri px-4 py-1.5 rounded-full text-xs font-black tracking-widest uppercase border border-pri/20">
                       {selectedProduct.category}
                     </span>
+                    {isAdmin && selectedProduct.sourceLink && (
+                       <a href={selectedProduct.sourceLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="bg-blue-500/10 text-blue-400 px-4 py-1.5 rounded-full text-xs font-black tracking-widest uppercase border border-blue-500/20 hover:bg-blue-500/20 transition-colors flex items-center gap-1 z-50 relative pointer-events-auto">
+                          <ExternalLink className="w-3 h-3" /> קישור לספק (מוסתר)
+                       </a>
+                    )}
                   </div>
                   <h2 className="text-2xl md:text-4xl font-display font-black mb-2 leading-tight">{selectedProduct.name}</h2>
                   
@@ -4526,9 +4556,12 @@ export default function App() {
                       <div className="text-4xl font-black text-pri">₪{lastOrderTotal}</div>
                     </div>
 
-                    <h4 className="text-xl font-black text-white mb-2">בחר אמצעי תשלום:</h4>
+                    <h4 className="text-xl font-black text-white mb-2">
+                       {lastOrderPaymentMethod === 'כללי' || !lastOrderPaymentMethod ? 'אפשרויות לתשלום' : 'השלם תשלום לחץ כאן:'}
+                    </h4>
                     
                     {/* PayBox Button */}
+                    {(lastOrderPaymentMethod === 'פייבוקס' || lastOrderPaymentMethod === 'כללי' || !lastOrderPaymentMethod) && (
                     <button 
                       onClick={() => {
                         if (settings.payboxLink) window.open(settings.payboxLink, '_blank');
@@ -4538,12 +4571,14 @@ export default function App() {
                     >
                       <div className="flex items-center gap-4">
                         <div className="bg-white/10 p-2 rounded-xl"><Wallet className="w-6 h-6 text-white" /></div>
-                        <span className="text-white">בשביל פייבוקס לחצו כאן</span>
+                        <span className="text-white">להשלמת קנייה פייבוקס לחצו כאן</span>
                       </div>
                       <ArrowLeft className="w-6 h-6 text-white group-hover/btn:translate-x-[-5px] transition-transform" />
                     </button>
+                    )}
 
                     {/* Bit Button */}
+                    {(lastOrderPaymentMethod === 'Bit' || lastOrderPaymentMethod === 'כללי' || !lastOrderPaymentMethod) && (
                     <button 
                       onClick={() => {
                         if (settings.bitLink) window.open(settings.bitLink, '_blank');
@@ -4553,25 +4588,28 @@ export default function App() {
                     >
                       <div className="flex items-center gap-4">
                         <div className="bg-white/10 p-2 rounded-xl"><CreditCard className="w-6 h-6 text-white" /></div>
-                        <span>בשביל ביט לחצו כאן</span>
+                        <span>להשלמת קנייה ביט לחצו כאן</span>
                       </div>
                       <ArrowLeft className="w-6 h-6 text-white group-hover/btn:translate-x-[-5px] transition-transform" />
                     </button>
+                    )}
 
                     {/* PayPal Button */}
+                    {(lastOrderPaymentMethod === 'PayPal' || lastOrderPaymentMethod === 'כללי' || !lastOrderPaymentMethod) && (
                     <button 
                       onClick={() => {
                         if (settings.paypalLink) window.open(settings.paypalLink, '_blank');
                         else setAlertMessage('קישור ה-PayPal עדיין לא הוגדר על ידי המנהל.');
                       }} 
-                      className="flex items-center justify-between gap-4 bg-linear-to-r from-[#003087] to-[#0070ba] p-6 rounded-[30px] text-xl font-black border-2 border-[#009cde]/50 hover:scale-105 transition-all shadow-xl text-white group/btn w-full"
+                      className="flex items-center justify-between gap-4 bg-linear-to-r from-[#003087] to-[#0070ba] p-6 rounded-[30px] text-xl font-black border-2 border-[#009cde]/50 hover:scale-105 transition-all shadow-xl text-white group/btn w-full mt-4"
                     >
                       <div className="flex items-center gap-4">
                         <div className="bg-white p-2 rounded-xl"><img src="https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg" className="h-6" /></div>
-                        <span>בשביל פייפאל לחצו כאן</span>
+                        <span>להשלמת קנייה פייפאל לחצו כאן</span>
                       </div>
                       <ArrowLeft className="w-6 h-6 text-white group-hover/btn:translate-x-[-5px] transition-transform" />
                     </button>
+                    )}
                   </motion.div>
                 )}
               </div>
@@ -4782,7 +4820,7 @@ export default function App() {
                         const nameEl = document.getElementById('var-name-add') as HTMLInputElement;
                         const priceEl = document.getElementById('var-price-add') as HTMLInputElement;
                         const imgEl = document.getElementById('var-img-add') as HTMLInputElement;
-                        if (!nameEl.value) return;
+                        if (!nameEl.value) { setAlertMessage('אנא הכנס שם אופציה'); return; }
                         const v: ProductVariant = { 
                           id: Math.random().toString(36).substr(2, 9), 
                           name: nameEl.value
