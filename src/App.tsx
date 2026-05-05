@@ -139,7 +139,7 @@ export default function App() {
     theme: 'dark',
     shippingCost: 35,
     officeHours: "כל יום עד 22:00",
-    ourStory: "הסיפור שלנו מתחיל באאהבה לאקסטרים...",
+    ourStory: "הסיפור שלנו מתחיל באהבה לאקסטרים...",
     specialDayEnabled: false,
     specialDayName: "שבוע המכירות הגדול",
     globalDiscountPercent: 0,
@@ -377,6 +377,8 @@ export default function App() {
       if (data) {
         const list = Object.entries(data).map(([id, val]) => ({ ...(val as Review), id })).reverse();
         setReviews(list);
+      } else {
+        setReviews([]);
       }
     });
 
@@ -385,6 +387,8 @@ export default function App() {
       if (data) {
         const list = Object.entries(data).map(([key, val]) => ({ ...(val as any), emailKey: key }));
         setAllUsers(list);
+      } else {
+        setAllUsers([]);
       }
     });
 
@@ -737,15 +741,11 @@ export default function App() {
       const triggerReset = () => {
         sendPasswordResetEmail(auth, email)
           .then(() => {
-            if (authEmail === 'omrifad32@gmail.com') {
-              setAuthNote(`נשלח נסיון שחזור. הבוס יקר: אם עדיין לא יצרת את החשבון במסוף החדש, המייל לא יישלח באמת! הפתרון הכי מהיר: פשוט עשה ״הרשמה״ עם אימייל זה וסיסמה חדשה.`);
-            } else {
-              setAuthNote(`מייל לשחזור סיסמה נשלח אל ${email}. אנא בדוק גם בתיקיית הספאם (הודעות זבל). הערה: אם חשבונך לא קיים במערכת, המייל לא באמת יישלח.`);
-            }
+            setAuthNote(`מייל לשחזור סיסמה נשלח אל ${email}. אנא בדוק גם בתיקיית הספאם (הודעות זבל). הערה: אם חשבונך לא קיים במערכת עשוי להיות שהמייל לא יישלח.`);
             setTimeout(() => {
               setAuthMode('login');
               setAuthNote(null);
-            }, 8000);
+            }, 6000);
           })
           .catch((error: any) => {
             if (error.code === 'auth/user-not-found') {
@@ -2005,6 +2005,7 @@ export default function App() {
                                         className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-white font-bold text-right"
                                         dir="rtl"
                                         value={order.status}
+                                        onClick={(e) => e.stopPropagation()}
                                         onChange={(e) => handleUpdateOrderStatus(order, e.target.value)}
                                       >
                                         <option>התקבל במערכת</option>
@@ -2632,16 +2633,26 @@ export default function App() {
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                          <input 
-                            className="bg-black/80 border-white/10 py-3 w-full text-sm"
-                            placeholder="URL של תמונה לקטגוריה"
-                            value={settings.categoryImages?.[cat] || ''}
-                            onChange={(e) => {
-                              const updated = { ...(settings.categoryImages || {}) };
-                              updated[cat] = e.target.value;
-                              setSettings({...settings, categoryImages: updated});
-                            }}
-                          />
+                          <div className="flex gap-2 w-full">
+                            <label className="cursor-pointer bg-pri text-black px-4 py-3 rounded-xl flex items-center justify-center shrink-0 hover:bg-pri/80 transition-colors" title="העלה תמונת קטגוריה">
+                              <ImageIcon className="w-5 h-5" />
+                              <input type="file" className="hidden" accept="image/*" onChange={(e) => handleUploadImage(e, (url) => {
+                                const updated = { ...(settings.categoryImages || {}) };
+                                updated[cat] = url;
+                                setSettings({...settings, categoryImages: updated});
+                              })} />
+                            </label>
+                            <input 
+                              className="bg-black/80 border-white/10 py-3 flex-1 text-sm rounded-xl px-4"
+                              placeholder="URL של תמונה לקטגוריה"
+                              value={settings.categoryImages?.[cat] || ''}
+                              onChange={(e) => {
+                                const updated = { ...(settings.categoryImages || {}) };
+                                updated[cat] = e.target.value;
+                                setSettings({...settings, categoryImages: updated});
+                              }}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -4172,7 +4183,7 @@ export default function App() {
                 <CheckCircle2 className="w-16 h-16 text-green-500" />
               </div>
               <h2 className="text-4xl md:text-5xl font-display font-black mb-2">ההזמנה נשלחה!</h2>
-              <p className="text-gold font-black text-xl mb-6">ההזמנה שלך {lastOrderId} נקלטה ושמורה במערכת! ✅</p>
+              <p className="text-gold font-black text-xl mb-6">ההזמנה שלך #{lastOrderId.replace('SC-', '')} נקלטה ושמורה במערכת! ✅</p>
               <p className="text-gray-400 text-lg mb-8 leading-relaxed px-4">לחץ מטה כדי לבצע תשלום מיידי, או שתשלם מאוחר יותר דרך דף "ההזמנות שלי".</p>
               
               <div className="bg-black/80 p-8 md:p-10 border-2 border-pri/30 rounded-[50px] mb-8 relative group shadow-2xl">
@@ -4203,15 +4214,15 @@ export default function App() {
                         <span 
                           className="text-white underline decoration-wavy cursor-pointer hover:text-pri transition-colors bg-white/10 px-3 py-1 rounded-xl border border-white/20 select-all"
                           onClick={(e) => {
-                            navigator.clipboard.writeText(lastOrderId);
+                            navigator.clipboard.writeText(lastOrderId.replace('SC-', ''));
                             const target = e.currentTarget;
-                            const originalText = lastOrderId;
+                            const originalText = lastOrderId.replace('SC-', '');
                             target.innerText = 'הועתק! ✅';
                             setTimeout(() => target.innerText = originalText, 2000);
                           }}
                           title="לחץ להעתקה"
                         >
-                          {lastOrderId}
+                          {lastOrderId.replace('SC-', '')}
                         </span>
                       </div>
                       <div className="text-xl font-bold mb-4">בפרטי התשלום (תיאור ההעברה הבנקאית)</div>
