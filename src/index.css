@@ -1,17 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;900&family=Oswald:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Rubik", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Oswald", sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
 
-  --color-bg-space-1: #02000a;
-  --color-bg-space-2: #09001a;
-  --color-bg-space-3: #001122;
-  --color-pri: #00f0ff;
-  --color-pri-glow: rgba(0, 240, 255, 0.5);
-  --color-acc: #ff0055;
-  --color-acc-glow: rgba(255, 0, 85, 0.5);
+  --color-bg-space-1: #050505;
+  --color-bg-space-2: #0a0a0a;
+  --color-bg-space-3: #121212;
+  --color-pri: #00E5FF; /* Electric Blue Accent */
+  --color-pri-glow: rgba(0, 229, 255, 0.4);
+  --color-acc: #FF2A00; /* Cyber Orange Accent */
+  --color-acc-glow: rgba(255, 42, 0, 0.4);
   --color-pb: #1ED2C8;
   --color-gold: #fcee0a;
   --color-admin-purple: #a200ff;
