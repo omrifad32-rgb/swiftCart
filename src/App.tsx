@@ -885,7 +885,7 @@ export default function App() {
           setAuthNote(null);
         })
         .catch((error: any) => {
-          let msg = error.message; // Default real message
+          let msg = error?.message || 'שגיאה כללית'; // Default real message
           if (error.code === 'auth/user-not-found') msg = 'משתמש לא נמצא';
           if (error.code === 'auth/wrong-password') msg = 'סיסמה שגויה';
           if (error.code === 'auth/invalid-credential') msg = 'פרטי התחברות שגויים';
@@ -933,7 +933,7 @@ export default function App() {
           });
         })
         .catch((error: any) => {
-          let msg = error.message; // Actual error message
+          let msg = error?.message || 'שגיאה כללית'; // Actual error message
           if (error.code === 'auth/email-already-in-use') msg = 'כתובת האימייל כבר בשימוש';
           if (error.code === 'auth/weak-password') msg = 'הסיסמה חלשה מדי';
           if (error.code === 'auth/configuration-not-found') msg = "שגיאת הגדרות: עליך להפעיל Email/Password במסוף Firebase (תחת Authentication).";
@@ -2138,7 +2138,7 @@ export default function App() {
                                       ))}
                                     </div>
                                   ) : (
-                                    <div className="text-lg leading-relaxed text-gray-300 mb-6 text-right" dangerouslySetInnerHTML={{ __html: order.items.replace(/, /g, '<br>') }} />
+                                    <div className="text-lg leading-relaxed text-gray-300 mb-6 text-right" dangerouslySetInnerHTML={{ __html: (order.items || '').toString().replace(/, /g, '<br>') }} />
                                   )}
                                   <div className="flex justify-between items-center pt-6 border-t border-white/5" dir="rtl">
                                     <span className="text-gray-400 font-bold">סה"כ שולם:</span>
@@ -3334,7 +3334,7 @@ export default function App() {
                                         ))}
                                       </div>
                                     ) : (
-                                      <div className="text-white font-bold leading-relaxed" dangerouslySetInnerHTML={{ __html: order.items.replace(/, /g, '<br>') }} />
+                                      <div className="text-white font-bold leading-relaxed" dangerouslySetInnerHTML={{ __html: (order.items || '').toString().replace(/, /g, '<br>') }} />
                                     )}
                                     <div className="mt-3 pt-3 border-t border-white/5 flex justify-between items-center">
                                       <span className="text-gray-400">סה"כ לתשלום:</span>
