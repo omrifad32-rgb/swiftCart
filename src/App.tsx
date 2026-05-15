@@ -354,34 +354,33 @@ export default function App() {
     const reviewsRef = ref(db, 'reviews');
     const categoriesRef = ref(db, 'categories');
 
-    onValue(settingsRef, (snapshot) => {
+    const unsubSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         setSettings(prev => ({ ...prev, ...data }));
       }
     });
 
-    onValue(couponsRef, (snapshot) => {
+    const unsubCoupons = onValue(couponsRef, (snapshot) => {
       const data = snapshot.val() || {};
       setCoupons(data);
     });
 
-    onValue(adminsRef, (snapshot) => {
+    const unsubAdmins = onValue(adminsRef, (snapshot) => {
       const data = snapshot.val() || {};
       setAdmins(data);
     });
 
-    onValue(categoriesRef, (snapshot) => {
+    const unsubCategories = onValue(categoriesRef, (snapshot) => {
       const data = snapshot.val();
       if (data && Array.isArray(data) && data.length > 0) {
         setCategories(data);
       } else {
-        // If data is null or empty in Firebase, keep default state (no explicit remote sync needed here)
         setCategories(['מגני מסך', 'אביזרים לסמארטפונים', 'טאבלטים', 'שעונים חכמים', 'ציוד הקלטה', 'ציוד גיימינג', 'אביזרי רכב', 'בית חכם', 'כבלים ומתאמים', 'ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה', 'אלקטרוניקה', 'בית וגן', 'צעצועים', 'ספורט', 'רכב']);
       }
     });
 
-    onValue(ordersRef, (snapshot) => {
+    const unsubOrders = onValue(ordersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([id, val]) => ({ ...(val as Order), id }));
@@ -391,7 +390,7 @@ export default function App() {
       }
     });
 
-    onValue(reviewsRef, (snapshot) => {
+    const unsubReviews = onValue(reviewsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([id, val]) => ({ ...(val as Review), id })).reverse();
@@ -401,7 +400,7 @@ export default function App() {
       }
     });
 
-    onValue(ref(db, 'users'), (snapshot) => {
+    const unsubUsers = onValue(ref(db, 'users'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([key, val]) => ({ ...(val as any), emailKey: key }));
@@ -411,7 +410,7 @@ export default function App() {
       }
     });
 
-    onValue(ref(db, 'messages'), (snapshot) => {
+    const unsubMessages = onValue(ref(db, 'messages'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([id, val]) => ({ ...(val as ContactMessage), id }));
@@ -514,9 +513,11 @@ export default function App() {
       }, 500);
     });
 
+    let unsubTrashProd: any, unsubTrashOrd: any, unsubTrashRev: any, unsubChatSessions: any, unsubUser: any, unsubMyChats: any;
+
     if (user) {
       const userRef = ref(db, `users/${user.replace(/\./g, ',')}`);
-      onValue(userRef, (snapshot) => {
+      unsubUser = onValue(userRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
           if (data.cart) setCart(Array.isArray(data.cart) ? data.cart : Object.values(data.cart));
@@ -528,7 +529,7 @@ export default function App() {
       });
       
       const myChatsRef = ref(db, `chats/${user.replace(/\./g, ',')}/messages`);
-      onValue(myChatsRef, (snapshot) => {
+      unsubMyChats = onValue(myChatsRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
            const list = Object.entries(data).map(([id, val]) => ({ ...(val as any), id }));
@@ -540,7 +541,7 @@ export default function App() {
     }
 
     // For Admin: Listen to all chat sessions
-    onValue(ref(db, 'chats'), (snapshot) => {
+    unsubChatSessions = onValue(ref(db, 'chats'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([key, val]: [string, any]) => ({
@@ -557,7 +558,7 @@ export default function App() {
       }
     });
 
-    onValue(ref(db, 'trash/products'), (snapshot) => {
+    unsubTrashProd = onValue(ref(db, 'trash/products'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([id, val]) => ({ ...(val as Product), id }));
@@ -567,7 +568,7 @@ export default function App() {
       }
     });
 
-    onValue(ref(db, 'trash/orders'), (snapshot) => {
+    unsubTrashOrd = onValue(ref(db, 'trash/orders'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([id, val]) => ({ ...(val as Order), id }));
@@ -577,7 +578,7 @@ export default function App() {
       }
     });
 
-    onValue(ref(db, 'trash/reviews'), (snapshot) => {
+    unsubTrashRev = onValue(ref(db, 'trash/reviews'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const list = Object.entries(data).map(([id, val]) => ({ ...(val as Review), id })).reverse();
@@ -587,7 +588,23 @@ export default function App() {
       }
     });
 
-    return () => unsubscribeProds();
+    return () => {
+       unsubscribeProds();
+       unsubSettings();
+       unsubCoupons();
+       unsubAdmins();
+       unsubCategories();
+       unsubOrders();
+       unsubReviews();
+       unsubUsers();
+       unsubMessages();
+       if (unsubChatSessions) unsubChatSessions();
+       if (unsubTrashProd) unsubTrashProd();
+       if (unsubTrashOrd) unsubTrashOrd();
+       if (unsubTrashRev) unsubTrashRev();
+       if (unsubUser) unsubUser();
+       if (unsubMyChats) unsubMyChats();
+    };
   }, [user]);
 
   const categoriesList = useMemo(() => {
@@ -805,10 +822,6 @@ export default function App() {
       const mailKey = email.replace(/\./g, ',');
       
       const triggerReset = () => {
-        if (email === 'omrifad32@gmail.com') {
-           setAuthNote("שמנו לב שזהו אימייל המנהל. הגדרנו עבורך מראש את הסיסמה omrifad3232@@. חזור למסך 'התחברות' והשתמש בה!");
-           return;
-        }
         sendPasswordResetEmail(auth, email)
           .then(() => {
             setAuthNote(`הוראות לאיפוס הסיסמה נשלחו לכתובת הדוא״ל ${email}. במידה ואינך רואה את ההודעה, אנא בדוק גם בתיקיית דואר הזבל (ספאם).`);
