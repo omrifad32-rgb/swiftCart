@@ -357,16 +357,6 @@ export default function App() {
     onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        let isModified = false;
-        Object.keys(data).forEach(key => {
-          if (typeof data[key] === 'string' && (data[key].includes('טיטאן') || data[key].toLowerCase().includes('titan x'))) {
-            data[key] = data[key].replace(/טיטאן( X| x)?|Titan( X| x)?/gi, 'SwiftCart');
-            isModified = true;
-          }
-        });
-        if (isModified) {
-          update(settingsRef, data).catch(console.error);
-        }
         setSettings(prev => ({ ...prev, ...data }));
       }
     });
@@ -385,9 +375,9 @@ export default function App() {
       const data = snapshot.val();
       if (data && Array.isArray(data) && data.length > 0) {
         setCategories(data);
-      } else if (!data || (Array.isArray(data) && data.length === 0)) {
-        // If data is null or empty in Firebase, we keep our default state and optionally seed it
-        set(ref(db, 'categories'), ['מגני מסך', 'אביזרים לסמארטפונים', 'טאבלטים', 'שעונים חכמים', 'ציוד הקלטה', 'ציוד גיימינג', 'אביזרי רכב', 'בית חכם', 'כבלים ומתאמים', 'ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה', 'אלקטרוניקה', 'בית וגן', 'צעצועים', 'ספורט', 'רכב']);
+      } else {
+        // If data is null or empty in Firebase, keep default state (no explicit remote sync needed here)
+        setCategories(['מגני מסך', 'אביזרים לסמארטפונים', 'טאבלטים', 'שעונים חכמים', 'ציוד הקלטה', 'ציוד גיימינג', 'אביזרי רכב', 'בית חכם', 'כבלים ומתאמים', 'ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה', 'אלקטרוניקה', 'בית וגן', 'צעצועים', 'ספורט', 'רכב']);
       }
     });
 
@@ -607,7 +597,7 @@ export default function App() {
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchCat = activeCategory === 'all' || p.category === activeCategory;
-      const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchSearch = (p.name || '').toLowerCase().includes((searchQuery || '').toLowerCase());
       const matchWish = isWishlistView ? wishlist.includes(p.id) : true;
       return matchCat && matchSearch && matchWish;
     });
@@ -829,7 +819,7 @@ export default function App() {
           })
           .catch((error: any) => {
             if (error.code === 'auth/user-not-found') {
-              setAuthNote("המשתמש לא נמצא במערכת. בדוק שהאימייל תקין או פתח חשבון חדש.");
+              setAuthNote("האימייל לא נמצא במערכת");
             } else if (error.code === 'auth/invalid-email') {
               setAuthNote("כתובת האימייל אינה תקינה.");
             } else if (error.code === 'auth/configuration-not-found') {
@@ -886,7 +876,7 @@ export default function App() {
         })
         .catch((error: any) => {
           let msg = error?.message || 'שגיאה כללית'; // Default real message
-          if (error.code === 'auth/user-not-found') msg = 'משתמש לא נמצא';
+          if (error.code === 'auth/user-not-found') msg = 'האימייל לא נמצא במערכת';
           if (error.code === 'auth/wrong-password') msg = 'סיסמה שגויה';
           if (error.code === 'auth/invalid-credential') msg = 'פרטי התחברות שגויים';
           if (error.code === 'auth/configuration-not-found') msg = "שגיאת הגדרות: עליך להפעיל Email/Password במסוף Firebase (תחת Authentication).";
