@@ -118,11 +118,13 @@ export default function App() {
   const [flashSaleTime, setFlashSaleTime] = useState(0);
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('sc_cart');
-    return saved ? JSON.parse(saved) : [];
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
   });
   const [wishlist, setWishlist] = useState<string[]>(() => {
     const saved = localStorage.getItem('sc_wishlist');
-    return saved ? JSON.parse(saved) : [];
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
   });
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [categories, setCategories] = useState<string[]>(['מגני מסך', 'אביזרים לסמארטפונים', 'טאבלטים', 'שעונים חכמים', 'ציוד הקלטה', 'ציוד גיימינג', 'אביזרי רכב', 'בית חכם', 'כבלים ומתאמים', 'ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה', 'אלקטרוניקה', 'בית וגן', 'צעצועים', 'ספורט', 'רכב']);
@@ -423,9 +425,9 @@ export default function App() {
     const unsubscribeProds = onValue(productsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        let productsList = Array.isArray(data) ? data.filter(Boolean) : Object.values(data);
+        let productsList = (Array.isArray(data) ? data : Object.values(data)).filter(Boolean);
         
-          setProducts(productsList as Product[]);
+        setProducts(productsList as Product[]);
       } else {
         setProducts([
           {
@@ -520,8 +522,8 @@ export default function App() {
       unsubUser = onValue(userRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          if (data.cart) setCart(Array.isArray(data.cart) ? data.cart : Object.values(data.cart));
-          if (data.wishlist) setWishlist(Array.isArray(data.wishlist) ? data.wishlist : Object.values(data.wishlist));
+          if (data.cart) setCart((Array.isArray(data.cart) ? data.cart : Object.values(data.cart)).filter(Boolean));
+          if (data.wishlist) setWishlist((Array.isArray(data.wishlist) ? data.wishlist : Object.values(data.wishlist)).filter(Boolean));
           if (data.theme) setLocalTheme(data.theme);
           if (data.balance) setUserBalance(data.balance);
           else setUserBalance(0);
@@ -684,7 +686,7 @@ export default function App() {
     if (user) {
       const mailKey = user.replace(/\./g, ',');
       const userRef = ref(db, `users/${mailKey}`);
-      onValue(userRef, (snapshot) => {
+      const unsub = onValue(userRef, (snapshot) => {
         const data = snapshot.val();
         if (data && data.isBanned) {
           setIsBanned(true);
@@ -693,6 +695,7 @@ export default function App() {
           setIsBanned(false);
         }
       });
+      return () => unsub();
     }
   }, [user]);
 
@@ -888,7 +891,7 @@ export default function App() {
           setAuthNote(null);
         })
         .catch((error: any) => {
-          let msg = error?.message || 'שגיאה כללית'; // Default real message
+          let msg = 'שגיאה כללית בהתחברות. אנא נסה שנית.'; // Fallback error
           if (error.code === 'auth/user-not-found') msg = 'האימייל לא נמצא במערכת';
           if (error.code === 'auth/wrong-password') msg = 'סיסמה שגויה';
           if (error.code === 'auth/invalid-credential') msg = 'פרטי התחברות שגויים';
@@ -936,7 +939,7 @@ export default function App() {
           });
         })
         .catch((error: any) => {
-          let msg = error?.message || 'שגיאה כללית'; // Actual error message
+          let msg = 'שגיאה כללית בהרשמה. אנא נסה שנית.'; // Fallback error
           if (error.code === 'auth/email-already-in-use') msg = 'כתובת האימייל כבר בשימוש';
           if (error.code === 'auth/weak-password') msg = 'הסיסמה חלשה מדי';
           if (error.code === 'auth/configuration-not-found') msg = "שגיאת הגדרות: עליך להפעיל Email/Password במסוף Firebase (תחת Authentication).";
