@@ -72,7 +72,8 @@ import {
   Menu,
   ExternalLink,
   Link,
-  Edit
+  Edit,
+  Images
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, CartItem, Order, Review, AppSettings, ContactMessage, ProductVariant, ChatMessage, ChatSession, Coupon } from './types';
@@ -204,6 +205,7 @@ export default function App() {
   const [showDonationsModal, setShowDonationsModal] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [confirmPlacement, setConfirmPlacement] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -262,6 +264,7 @@ export default function App() {
   const [lastOrderId, setLastOrderId] = useState<string>('');
   const [lastOrderPaymentMethod, setLastOrderPaymentMethod] = useState<string | null>(null);
   const [pendingImg, setPendingImg] = useState<string>('');
+  const [gallerySelectorConfig, setGallerySelectorConfig] = useState<{ active: boolean, availableImages: string[], onSelect: (url: string) => void } | null>(null);
   const [newProdData, setNewProdData] = useState({ 
     name: '', 
     price: '', 
@@ -996,6 +999,8 @@ export default function App() {
   };
 
   const handlePlaceOrder = () => {
+    if (isPlacingOrder) return;
+    
     const nameStr = checkoutData.name ? checkoutData.name.trim() : '';
     const phoneClean = checkoutData.phone ? checkoutData.phone.replace(/[\s-]/g, '') : '';
     
@@ -1020,6 +1025,7 @@ export default function App() {
       return;
     }
     
+    setIsPlacingOrder(true);
     setCheckoutError(null);
     const id = 'SC-' + Math.floor(Math.random() * 9000 + 1000);
     const itemsStr = cart.map(x => {
@@ -1063,27 +1069,35 @@ export default function App() {
       paymentMethod: selectedPaymentMethod || 'כללי'
     };
 
-    set(ref(db, `orders/${id}`), orderData).then(() => {
-       // Deduct balance if used
-       if (amountFromBalance > 0 && user) {
-        const mailKey = user.replace(/\./g, ',');
-        set(ref(db, `users/${mailKey}/balance`), Math.max(0, userBalance - amountFromBalance));
-      }
-
-      setLastOrderTotal(totalWithShipping);
-      setLastOrderId(id);
-      setLastOrderPaymentMethod(selectedPaymentMethod);
-      if (user) {
-        set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), []);
-      }
-      setCart([]);
-      setShowCheckoutModal(false);
-      setConfirmPlacement(false);
-      setShowSuccessModal(true);
-      setUseBalanceInCheckout(false);
-      setCheckoutStep('form');
-      setSelectedPaymentMethod(null);
-    });
+    set(ref(db, `orders/${id}`), orderData)
+      .then(() => {
+         // Deduct balance if used
+         if (amountFromBalance > 0 && user) {
+          const mailKey = user.replace(/\./g, ',');
+          set(ref(db, `users/${mailKey}/balance`), Math.max(0, userBalance - amountFromBalance));
+        }
+  
+        setLastOrderTotal(totalWithShipping);
+        setLastOrderId(id);
+        setLastOrderPaymentMethod(selectedPaymentMethod);
+        if (user) {
+          set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), []);
+        }
+        setCart([]);
+        setShowCheckoutModal(false);
+        setConfirmPlacement(false);
+        setShowSuccessModal(true);
+        setUseBalanceInCheckout(false);
+        setCheckoutStep('form');
+        setSelectedPaymentMethod(null);
+      })
+      .catch((err) => {
+        console.error("Error creating order", err);
+        setCheckoutError('אירעה שגיאה בביצוע ההזמנה. אנא נסה שוב.');
+      })
+      .finally(() => {
+        setIsPlacingOrder(false);
+      });
   };
 
   const handleUpdateOrderStatus = (order: Order, newStatus: string) => {
@@ -1181,6 +1195,31 @@ export default function App() {
   
   const handleDeleteCoupon = (code: string) => {
     remove(ref(db, `coupons/${code}`));
+  };
+
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+
+  const generateDescription = async (name: string, currentDesc: string, setter: (desc: string) => void) => {
+    if (!name) {
+      alert('נא להזין שם מוצר קודם');
+      return;
+    }
+    setIsGeneratingDesc(true);
+    try {
+      const res = await fetch('/api/generate-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, currentDesc })
+      });
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setter(data.description);
+    } catch (err) {
+      console.error('Error generating description', err);
+      alert('שגיאה ביצירת תיאור למוצר');
+    } finally {
+      setIsGeneratingDesc(false);
+    }
   };
 
   const handleAddProduct = () => {
@@ -4518,11 +4557,12 @@ export default function App() {
                     <motion.button 
                       initial={{ scale: 0.95, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      className="btn-main py-8 text-4xl mt-12 shadow-[0_0_50px_rgba(0,240,255,0.4)] relative overflow-hidden group"
+                      className={`btn-main py-8 text-4xl mt-12 shadow-[0_0_50px_rgba(0,240,255,0.4)] relative overflow-hidden group ${isPlacingOrder ? 'opacity-50 cursor-not-allowed' : ''}`}
                       onClick={handlePlaceOrder}
+                      disabled={isPlacingOrder}
                     >
                       <div className="absolute inset-0 bg-linear-to-r from-pri via-white/40 to-pri opacity-0 group-hover:opacity-20 transition-opacity translate-x-[-100%] group-hover:translate-x-[100%] duration-1000" />
-                      בצע הזמנה ושלם <ShieldCheck className="w-10 h-10" />
+                      {isPlacingOrder ? 'מבצע הזמנה...' : <>בצע הזמנה ושלם <ShieldCheck className="w-10 h-10" /></>}
                     </motion.button>
                   )}
 
@@ -4664,10 +4704,14 @@ export default function App() {
                 )}
               </div>
               <button 
-                className="bg-white/5 hover:bg-white/10 w-full py-5 rounded-2xl font-bold transition-all text-gray-400"
-                onClick={() => { setShowSuccessModal(false); setActivePage('orders'); }}
+                className="bg-white/10 hover:bg-white/20 border-2 border-white/20 w-full py-5 rounded-[30px] font-black text-xl transition-all text-white flex items-center justify-center gap-3 shadow-lg"
+                onClick={() => { 
+                  setShowSuccessModal(false); 
+                  setActivePage('orders'); 
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
               >
-                סגור ומעבר להזמנות
+                סיום ומעבר להזמנות שלי <Box className="w-6 h-6" />
               </button>
             </motion.div>
           </div>
@@ -4728,12 +4772,23 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-                <textarea 
-                  placeholder="מפרט טכני..."
-                  className="bg-black/60 border-white/10 h-40"
-                  value={newProdData.desc}
-                  onChange={(e) => setNewProdData({...newProdData, desc: e.target.value})}
-                />
+                <div className="relative">
+                  <textarea 
+                    placeholder="מפרט טכני..."
+                    className="bg-black/60 border-white/10 h-40 w-full rounded-2xl p-4 text-white resize-none"
+                    value={newProdData.desc}
+                    onChange={(e) => setNewProdData({...newProdData, desc: e.target.value})}
+                  />
+                  <button 
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); generateDescription(newProdData.name, newProdData.desc || '', (desc) => setNewProdData({...newProdData, desc})); }}
+                    disabled={isGeneratingDesc || !newProdData.name}
+                    className="absolute top-2 left-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center gap-2 z-10"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    {isGeneratingDesc ? 'מייצר...' : 'ייצר מפרט מקצועי עם AI'}
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white/5 rounded-3xl border border-white/10">
                    <div>
                     <label className="text-xs font-bold text-gray-500 mb-2 block">מחיר מכירה לקוח ₪</label>
@@ -4896,12 +4951,22 @@ export default function App() {
                       return (
                         <div key={v.id || i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-3 relative group">
                           <div className="flex items-center gap-2">
-                             <label className="cursor-pointer relative shrink-0">
-                               <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
-                                 {v.img ? <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-4 h-4 text-gray-400" />}
-                               </div>
-                               <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
-                             </label>
+                             <div className="shrink-0 flex items-center gap-1">
+                               <label className="cursor-pointer relative block" title="העלה תמונה למכשיר">
+                                 <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
+                                   {v.img ? <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-4 h-4 text-gray-400" />}
+                                 </div>
+                                 <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
+                               </label>
+                               <button 
+                                 type="button"
+                                 title="בחר מהגלריה של המוצר"
+                                 className="bg-white/5 hover:bg-white/10 p-2 rounded-lg"
+                                 onClick={(e) => { e.preventDefault(); setGallerySelectorConfig({ active: true, availableImages: [newProdData.img, ...(newProdData.extraImages || [])].filter(Boolean) as string[], onSelect: (url) => updateVariant('img', url) }); }}
+                               >
+                                 <Images className="w-4 h-4 text-pri" />
+                               </button>
+                             </div>
                              <div className="flex flex-col gap-1 w-full">
                                <input 
                                  className="text-xs font-bold text-white bg-transparent border-b border-white/10 focus:border-pri outline-none w-full" 
@@ -5015,7 +5080,7 @@ export default function App() {
                                        setNewProdData({...newProdData, customOptions: list});
                                     }}
                                   />
-                                  <label className="cursor-pointer text-gray-400 hover:text-white" title="הוסף תמונה">
+                                  <label className="cursor-pointer text-gray-400 hover:text-white" title="העלה תמונה">
                                     <ImageIcon className="w-4 h-4" />
                                     <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                                        const list = [...(newProdData.customOptions || [])];
@@ -5026,6 +5091,20 @@ export default function App() {
                                        setNewProdData({...newProdData, customOptions: list});
                                     })} />
                                   </label>
+                                  <button type="button" title="בחר מהגלריה של המוצר" className="text-gray-400 hover:text-white" onClick={(e) => { e.preventDefault(); setGallerySelectorConfig({
+                                    active: true, 
+                                    availableImages: [newProdData.img, ...(newProdData.extraImages || [])].filter(Boolean) as string[],
+                                    onSelect: (url) => {
+                                       const list = [...(newProdData.customOptions || [])];
+                                       const oldChoices = [...list[i].choices];
+                                       const oldChoice = oldChoices[j];
+                                       oldChoices[j] = typeof oldChoice === 'string' ? { name: oldChoice, img: url } : { ...oldChoice, img: url };
+                                       list[i].choices = oldChoices;
+                                       setNewProdData({...newProdData, customOptions: list});
+                                    }
+                                  }); }}>
+                                    <Images className="w-4 h-4" />
+                                  </button>
                                   <button onClick={() => {
                                        const list = [...(newProdData.customOptions || [])];
                                        const oldChoices = [...list[i].choices];
@@ -5107,13 +5186,23 @@ export default function App() {
                     </select>
                   </div>
                 </div>
-
-                <textarea 
-                  placeholder="מפרט..."
-                  className="bg-black/60 border-white/10 h-32"
-                  value={editProdData.desc}
-                  onChange={(e) => setEditProdData({...editProdData, desc: e.target.value})}
-                />
+                <div className="relative">
+                  <textarea 
+                    placeholder="מפרט..."
+                    className="bg-black/60 border-white/10 h-32 w-full rounded-2xl p-4 text-white resize-none"
+                    value={editProdData.desc}
+                    onChange={(e) => setEditProdData({...editProdData, desc: e.target.value})}
+                  />
+                  <button 
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); generateDescription(editProdData.name, editProdData.desc || '', (desc) => setEditProdData({...editProdData, desc})); }}
+                    disabled={isGeneratingDesc || !editProdData.name}
+                    className="absolute top-2 left-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center gap-2 z-10"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    {isGeneratingDesc ? 'מייצר...' : 'ייצר מפרט מקצועי עם AI'}
+                  </button>
+                </div>
 
                 <div className="space-y-4 pt-4 border-t border-white/5">
                   <div className="flex items-center justify-between mb-2">
@@ -5176,12 +5265,22 @@ export default function App() {
                       return (
                         <div key={v.id || i} className="bg-white/5 border border-white/10 p-3 rounded-xl flex flex-col gap-3 relative group">
                           <div className="flex items-center gap-2">
-                             <label className="cursor-pointer relative shrink-0">
-                               <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
-                                 {v.img ? <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-4 h-4 text-gray-400" />}
-                               </div>
-                               <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
-                             </label>
+                             <div className="shrink-0 flex items-center gap-1">
+                               <label className="cursor-pointer relative block" title="העלה תמונה למכשיר">
+                                 <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
+                                   {v.img ? <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-4 h-4 text-gray-400" />}
+                                 </div>
+                                 <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
+                               </label>
+                               <button 
+                                 type="button"
+                                 title="בחר מהגלריה של המוצר"
+                                 className="bg-white/5 hover:bg-white/10 p-2 rounded-lg"
+                                 onClick={(e) => { e.preventDefault(); setGallerySelectorConfig({ active: true, availableImages: [editProdData.img, ...(editProdData.extraImages || [])].filter(Boolean) as string[], onSelect: (url) => updateVariant('img', url) }); }}
+                               >
+                                 <Images className="w-4 h-4 text-pri" />
+                               </button>
+                             </div>
                              <div className="flex flex-col gap-1 w-full">
                                <input 
                                  className="text-xs font-bold text-white bg-transparent border-b border-white/10 focus:border-pri outline-none w-full" 
@@ -5295,7 +5394,7 @@ export default function App() {
                                        setEditProdData({...editProdData, customOptions: list});
                                     }}
                                   />
-                                  <label className="cursor-pointer text-gray-400 hover:text-white" title="הוסף תמונה">
+                                  <label className="cursor-pointer text-gray-400 hover:text-white" title="העלה תמונה">
                                     <ImageIcon className="w-4 h-4" />
                                     <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                                        const list = [...(editProdData.customOptions || [])];
@@ -5306,6 +5405,20 @@ export default function App() {
                                        setEditProdData({...editProdData, customOptions: list});
                                     })} />
                                   </label>
+                                  <button type="button" title="בחר מהגלריה של המוצר" className="text-gray-400 hover:text-white" onClick={(e) => { e.preventDefault(); setGallerySelectorConfig({
+                                    active: true, 
+                                    availableImages: [editProdData.img, ...(editProdData.extraImages || [])].filter(Boolean) as string[],
+                                    onSelect: (url) => {
+                                       const list = [...(editProdData.customOptions || [])];
+                                       const oldChoices = [...list[i].choices];
+                                       const oldChoice = oldChoices[j];
+                                       oldChoices[j] = typeof oldChoice === 'string' ? { name: oldChoice, img: url } : { ...oldChoice, img: url };
+                                       list[i].choices = oldChoices;
+                                       setEditProdData({...editProdData, customOptions: list});
+                                    }
+                                  }); }}>
+                                    <Images className="w-4 h-4" />
+                                  </button>
                                   <button onClick={() => {
                                        const list = [...(editProdData.customOptions || [])];
                                        const oldChoices = [...list[i].choices];
@@ -5528,6 +5641,46 @@ export default function App() {
                 <button 
                   onClick={() => setConfirmAction(null)}
                   className="flex-1 bg-white/10 text-white font-bold py-3 rounded-xl hover:bg-white/20 transition-colors"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {gallerySelectorConfig && gallerySelectorConfig.active && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <div className="bg-glass border border-white/10 rounded-3xl p-8 max-w-2xl w-full shadow-2xl relative flex flex-col gap-6" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-2xl font-bold text-white text-center">בחר תמונה מהגלריה</h2>
+              
+              {gallerySelectorConfig.availableImages.length === 0 ? (
+                <div className="text-center text-gray-500 py-10">אין תמונות זמינות לבחירה.</div>
+              ) : (
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-white/10">
+                  {gallerySelectorConfig.availableImages.map((imgUrl, idx) => (
+                    <div 
+                      key={idx} 
+                      className="aspect-square bg-black/40 rounded-2xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-pri transition-all border border-white/10"
+                      onClick={() => {
+                        gallerySelectorConfig.onSelect(imgUrl);
+                        setGallerySelectorConfig(null);
+                      }}
+                    >
+                      <img src={imgUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-center mt-2">
+                <button 
+                  onClick={() => setGallerySelectorConfig(null)}
+                  className="bg-white/10 hover:bg-white/20 px-8 py-3 rounded-xl font-bold transition-all text-white"
                 >
                   ביטול
                 </button>
