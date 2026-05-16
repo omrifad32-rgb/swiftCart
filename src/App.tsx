@@ -92,6 +92,14 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
+const safeSetItem = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`Failed to set ${key} in localStorage`, e);
+  }
+};
+
 export default function App() {
   const [activePage, setActivePage] = useState<'catalog' | 'cart' | 'orders' | 'reviews' | 'admin' | 'support' | 'home' | string>('home');
   const [products, setProducts] = useState<Product[]>([]);
@@ -118,13 +126,23 @@ export default function App() {
   const [flashSaleTime, setFlashSaleTime] = useState(0);
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('sc_cart');
-    const parsed = saved ? JSON.parse(saved) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    try {
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      localStorage.removeItem('sc_cart');
+      return [];
+    }
   });
   const [wishlist, setWishlist] = useState<string[]>(() => {
     const saved = localStorage.getItem('sc_wishlist');
-    const parsed = saved ? JSON.parse(saved) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    try {
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      localStorage.removeItem('sc_wishlist');
+      return [];
+    }
   });
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [categories, setCategories] = useState<string[]>(['מגני מסך', 'אביזרים לסמארטפונים', 'טאבלטים', 'שעונים חכמים', 'ציוד הקלטה', 'ציוד גיימינג', 'אביזרי רכב', 'בית חכם', 'כבלים ומתאמים', 'ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה', 'אלקטרוניקה', 'בית וגן', 'צעצועים', 'ספורט', 'רכב']);
@@ -168,7 +186,7 @@ export default function App() {
     const saved = localStorage.getItem('sc_guest_id');
     if (saved) return saved;
     const newId = `guest_${Math.random().toString(36).substring(2, 11)}`;
-    localStorage.setItem('sc_guest_id', newId);
+    safeSetItem('sc_guest_id', newId);
     return newId;
   });
   const [authNote, setAuthNote] = useState<string | null>(null);
@@ -307,7 +325,7 @@ export default function App() {
         document.body.classList.remove('light-theme');
       }
     }
-    localStorage.setItem('sc_theme', localTheme);
+    safeSetItem('sc_theme', localTheme);
     if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/theme`), localTheme);
   }, [localTheme, user, settings.singleProductMode]);
 
@@ -334,15 +352,15 @@ export default function App() {
 
   // Sync cart and wishlist to localStorage
   useEffect(() => {
-    localStorage.setItem('sc_cart', JSON.stringify(cart));
+    safeSetItem('sc_cart', JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem('sc_wishlist', JSON.stringify(wishlist));
+    safeSetItem('sc_wishlist', JSON.stringify(wishlist));
   }, [wishlist]);
 
   useEffect(() => {
-    if (user) localStorage.setItem('sc_user', user);
+    if (user) safeSetItem('sc_user', user);
     else localStorage.removeItem('sc_user');
   }, [user]);
 
@@ -759,7 +777,7 @@ export default function App() {
       }
       
       if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), JSON.parse(JSON.stringify(newCart)));
-      localStorage.setItem('sc_cart', JSON.stringify(newCart));
+      safeSetItem('sc_cart', JSON.stringify(newCart));
       return newCart;
     });
     
@@ -803,7 +821,7 @@ export default function App() {
       }).filter((i): i is CartItem => i !== null);
       
       if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), JSON.parse(JSON.stringify(newCart)));
-      localStorage.setItem('sc_cart', JSON.stringify(newCart));
+      safeSetItem('sc_cart', JSON.stringify(newCart));
       return newCart;
     });
   };
@@ -812,7 +830,7 @@ export default function App() {
     setCart(prev => {
       const newCart = prev.filter(i => getCartId(i) !== cartId);
       if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/cart`), JSON.parse(JSON.stringify(newCart)));
-      localStorage.setItem('sc_cart', JSON.stringify(newCart));
+      safeSetItem('sc_cart', JSON.stringify(newCart));
       return newCart;
     });
   };
@@ -5450,7 +5468,7 @@ export default function App() {
                 <div className="flex gap-3">
                   <button 
                     onClick={() => {
-                      localStorage.setItem('sc_cookies_accepted', 'true');
+                      safeSetItem('sc_cookies_accepted', 'true');
                       setShowCookieBanner(false);
                     }}
                     className="flex-1 bg-pri text-black font-black py-3 rounded-xl hover:scale-105 transition-all text-sm"
