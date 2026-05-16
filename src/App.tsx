@@ -73,7 +73,8 @@ import {
   ExternalLink,
   Link,
   Edit,
-  Images
+  Images,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, CartItem, Order, Review, AppSettings, ContactMessage, ProductVariant, ChatMessage, ChatSession, Coupon } from './types';
@@ -208,6 +209,7 @@ export default function App() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<'form' | 'payment'>('form');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
@@ -1211,12 +1213,12 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, currentDesc })
       });
-      if (!res.ok) throw new Error('Failed');
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
       setter(data.description);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error generating description', err);
-      alert('שגיאה ביצירת תיאור למוצר');
+      alert(err.message || 'שגיאה ביצירת תיאור למוצר');
     } finally {
       setIsGeneratingDesc(false);
     }
@@ -1369,7 +1371,7 @@ export default function App() {
         >
           <Rocket className="w-20 h-20 text-pri drop-shadow-[0_15px_30px_rgba(0,240,255,0.4)]" />
         </motion.div>
-        <div className="font-display text-5xl uppercase tracking-widest mt-8 animate-pulse">
+        <div className="font-display text-5xl uppercase tracking-widest mt-8 animate-pulse" translate="no">
           {settings.title}
         </div>
         <p className="text-gray-500 font-bold tracking-widest mt-4">המערכת עולה לאוויר...</p>
@@ -1397,6 +1399,7 @@ export default function App() {
     <div className="min-h-screen pb-[calc(100px+env(safe-area-inset-bottom))] pt-24" dir="rtl">
       <header className="glass-header">
         <div 
+          translate="no"
           className="font-display text-3xl font-black tracking-wider cursor-pointer"
           onClick={() => {
              setActivePage('home');
@@ -1406,10 +1409,98 @@ export default function App() {
           {settings.title}
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 md:gap-6">
+          <div className="relative">
+            <button 
+              onClick={() => setLangMenuOpen(!langMenuOpen)}
+              className="w-10 h-10 shrink-0 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10"
+              title="שנה שפה / Change Language"
+            >
+              <Globe className="w-5 h-5 text-white" />
+            </button>
+            
+            <AnimatePresence>
+              {langMenuOpen && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute top-full left-1/2 -translate-x-1/2 mt-3 bg-glass border border-white/10 rounded-2xl shadow-2xl overflow-hidden min-w-[140px] z-50 flex flex-col backdrop-blur-2xl"
+                >
+                  {[
+                    { code: 'iw', label: 'עברית' },
+                    { code: 'en', label: 'English' },
+                    { code: 'ru', label: 'Русский' },
+                    { code: 'ar', label: 'العربية' },
+                    { code: 'fr', label: 'Français' },
+                    { code: 'es', label: 'Español' },
+                    { code: 'de', label: 'Deutsch' }
+                  ].map(lang => (
+                    <button
+                      key={lang.code}
+                      className="px-5 py-3 text-sm text-center hover:bg-white/10 transition-all text-white font-bold border-b border-white/5 last:border-0"
+                      onClick={() => {
+                        if (lang.code === 'iw') {
+                          // Clear google translate cookies completely to restore original language
+                          const cookies = document.cookie.split(";");
+                          for (let i = 0; i < cookies.length; i++) {
+                            const cookie = cookies[i];
+                            let eqPos = cookie.indexOf("=");
+                            let name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+                            if (name.trim() === "googtrans") {
+                              document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+                              document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
+                            }
+                          }
+                          
+                          // Trick Google Translate into restoring original language
+                          const select = document.querySelector('.goog-te-combo') as HTMLSelectElement;
+                          if (select) {
+                            let iwOpt = Array.from(select.options).find(opt => opt.value === 'iw');
+                            if (!iwOpt) {
+                              iwOpt = document.createElement('option');
+                              iwOpt.value = 'iw';
+                              select.appendChild(iwOpt);
+                            }
+                            select.value = 'iw';
+                            select.dispatchEvent(new Event('change', { bubbles: true }));
+                          }
+                          
+                          // Also try the iframe restore button just in case
+                          try {
+                            const iframe = document.querySelector('iframe.goog-te-banner-frame') as HTMLIFrameElement;
+                            if (iframe) {
+                              const innerDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                              if (innerDoc) {
+                                const restoreBtn = innerDoc.querySelector('button[id*="restore"]') || innerDoc.querySelector('button');
+                                if (restoreBtn) (restoreBtn as HTMLElement).click();
+                              }
+                            }
+                          } catch (e) {}
+
+                          document.body.classList.remove('translated-ltr', 'translated-rtl');
+                          document.documentElement.lang = 'iw';
+                        } else {
+                          const select = document.querySelector('.goog-te-combo') as HTMLSelectElement;
+                          if (select) {
+                            select.value = lang.code;
+                            select.dispatchEvent(new Event('change', { bubbles: true }));
+                          }
+                        }
+                        setLangMenuOpen(false);
+                      }}
+                    >
+                      {lang.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button 
             onClick={() => setLocalTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-            className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10"
+            className="w-10 h-10 shrink-0 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10"
           >
             {localTheme === 'dark' ? <Sun className="w-5 h-5 text-gold" /> : <Moon className="w-5 h-5 text-pri" />}
           </button>
@@ -1421,8 +1512,8 @@ export default function App() {
             }}
           >
             <User className={`w-6 h-6 ${user ? 'text-green-400' : 'text-pri'}`} />
-            <span className="text-sm font-bold text-white hidden sm:inline">
-              {user ? user.split('@')[0] : 'התחברות'}
+            <span translate="no" className="text-sm font-bold text-white hidden sm:inline">
+              {user ? user.split('@')[0] : <span translate="yes">התחברות</span>}
             </span>
           </div>
 
@@ -1582,7 +1673,7 @@ export default function App() {
               className="py-6 pb-40 md:pb-12 space-y-12"
             >
               <div className="text-center pb-8 border-b border-white/10 max-w-4xl mx-auto">
-                <h1 className="font-display text-5xl md:text-7xl font-black mb-4 tracking-wider">
+                <h1 translate="no" className="font-display text-5xl md:text-7xl font-black mb-4 tracking-wider">
                   {settings.title}
                 </h1>
                 <p className="text-xl md:text-2xl text-pri font-bold tracking-widest uppercase">{settings.sub}</p>
@@ -3784,7 +3875,7 @@ export default function App() {
                   <h3 className={`text-2xl font-normal mb-2 ${localTheme === 'light' ? 'text-[#202124]' : 'text-[#e8eaed]'}`} style={{ fontFamily: 'sans-serif' }}>מחובר למערכת</h3>
                   <div className={`px-4 py-1.5 rounded-full border mb-8 text-sm flex items-center gap-2 ${localTheme === 'light' ? 'border-[#dadce0] bg-[#f8f9fa] text-[#3c4043]' : 'border-[#5f6368] text-[#e8eaed]'}`}>
                     <User className="w-3.5 h-3.5" />
-                    {user}
+                    <span translate="no">{user}</span>
                   </div>
                   <div className="w-full flex flex-col gap-3">
                     <button 

@@ -20,6 +20,10 @@ async function startServer() {
 
   app.post("/api/generate-description", async (req, res) => {
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(400).json({ error: 'חסר מפתח API של Google Gemini. אנא הוסף בהגדרות/משתני סביבה כדי להשתמש בבינה מלאכותית.' });
+      }
+      
       const { name, currentDesc } = req.body;
       
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
