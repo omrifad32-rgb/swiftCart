@@ -2390,11 +2390,11 @@ export default function App() {
                                         <button 
                                           onClick={() => {
                                             if (settings.paypalLink) window.open(settings.paypalLink, '_blank');
-                                            else setAlertMessage('קישור ה-PayPal עדיין לא הוגדר.');
+                                            else setAlertMessage('קישור תשלום אשראי עדיין לא הוגדר.');
                                           }}
                                           className="bg-[#003087] text-white py-3 rounded-xl font-black text-xs hover:scale-105 transition-all flex items-center justify-center gap-2"
                                         >
-                                          <Wallet className="w-4 h-4" /> PayPal
+                                          <Wallet className="w-4 h-4" /> אשראי
                                         </button>
                                       </div>
                                     </div>
@@ -2692,19 +2692,21 @@ export default function App() {
                               </thead>
                               <tbody className="divide-y divide-white/5">
                                 {allUsers
+                                  .filter(u => !u.isBanned)
                                   .filter(u => (u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()))
                                   .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0))
                                   .map((u, idx) => {
                                     const mailKey = u.emailKey;
+                                    const isOnline = u.lastActive && (Date.now() - u.lastActive < 5 * 60 * 1000); // 5 minutes
                                     return (
-                                      <tr key={idx} className={`hover:bg-white/[0.02] transition-colors group ${u.isBanned ? 'opacity-50 grayscale' : ''}`}>
+                                      <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
                                         <td className="py-6 pr-4">
                                           <div className="flex items-center gap-3">
-                                            <div className={`w-3 h-3 rounded-full ${u.isBanned ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`} />
+                                            <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'bg-gray-600'}`} title={isOnline ? 'מחובר כעת' : 'לא מחובר'} />
                                             <div>
                                               <div className="font-bold text-white flex items-center gap-2">
                                                 {u.email}
-                                                {u.isBanned && <ShieldAlert className="w-4 h-4 text-red-500" />}
+                                                {isOnline && <span className="text-[10px] text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded-full">מחובר כעת</span>}
                                               </div>
                                               <div className="text-xs text-gray-500">{u.emailKey?.replace(/,/g, '.')}</div>
                                             </div>
@@ -2733,15 +2735,13 @@ export default function App() {
                                             <button 
                                               onClick={() => {
                                                 setConfirmAction({
-                                                  message: u.isBanned 
-                                                    ? 'האם אתה בטוח שברצונך לבטל את החסימה של משתמש זה?' 
-                                                    : 'האם אתה בטוח שברצונך לחסום משתמש זה? (הוא לא יוכל לגשת לאתר)',
-                                                  onConfirm: () => handleBanUser(mailKey, !u.isBanned)
+                                                  message: 'האם אתה בטוח שברצונך להעביר משתמש זה לרשימה המשנית? המשתמש ייחסם אוטומטית וימוקם בסוף הרשימה.',
+                                                  onConfirm: () => handleBanUser(mailKey, true)
                                                 });
                                               }}
-                                              className={`px-4 py-2 rounded-xl text-sm font-black transition-all ${u.isBanned ? 'bg-green-600/10 text-green-500 hover:bg-green-600/20' : 'bg-red-600/10 text-red-500 hover:bg-red-600/20'}`}
+                                              className="px-4 py-2 rounded-xl text-sm font-black transition-all bg-red-600/10 text-red-500 hover:bg-red-600/20"
                                             >
-                                              {u.isBanned ? 'בטל חסימה' : 'חסימה'}
+                                              העבר לרשימה משנית
                                             </button>
                                           </div>
                                         </td>
@@ -3104,10 +3104,10 @@ export default function App() {
                       <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-white/5 mt-4">
                         <div className="bg-black/40 p-6 rounded-3xl border border-white/5">
                            <label className="text-[#00457C] font-black block mb-3 text-lg flex items-center gap-2">
-                             <Wallet className="w-5 h-5" /> קישור PayPal:
+                             <Wallet className="w-5 h-5" /> קישור תשלום באשראי:
                            </label>
                            <input 
-                             placeholder="הכנס URL של פייפאל"
+                             placeholder="הכנס URL של מערכת סליקת אשראי"
                              className="bg-black/60 border-white/10 py-4 w-full"
                              value={settings.paypalLink || ''}
                              onChange={(e) => setSettings({...settings, paypalLink: e.target.value})}
@@ -3273,8 +3273,8 @@ export default function App() {
                         <input placeholder="Bit Link" className="bg-black/60 border-white/10" value={settings.bitLink} onChange={(e) => setSettings({...settings, bitLink: e.target.value})} />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <input placeholder="PayPal Label" className="bg-black/60 border-white/10" value={settings.paypalLabel} onChange={(e) => setSettings({...settings, paypalLabel: e.target.value})} />
-                        <input placeholder="PayPal Link" className="bg-black/60 border-white/10" value={settings.paypalLink} onChange={(e) => setSettings({...settings, paypalLink: e.target.value})} />
+                        <input placeholder="Credit Card Label (אשראי)" className="bg-black/60 border-white/10" value={settings.paypalLabel} onChange={(e) => setSettings({...settings, paypalLabel: e.target.value})} />
+                        <input placeholder="Credit Card Link (אשראי)" className="bg-black/60 border-white/10" value={settings.paypalLink} onChange={(e) => setSettings({...settings, paypalLink: e.target.value})} />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <input placeholder="PayBox Label" className="bg-black/60 border-white/10" value={settings.payboxLabel} onChange={(e) => setSettings({...settings, payboxLabel: e.target.value})} />
@@ -3282,7 +3282,7 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
                         <label className="text-white font-bold text-lg flex items-center justify-between w-full cursor-pointer">
-                          <span>פייפאל עסקי (תשלום יחיד)</span>
+                          <span>תשלום באשראי (תשלום יחיד)</span>
                           <input 
                             type="checkbox" 
                             className="w-6 h-6 accent-pri cursor-pointer"
@@ -3687,6 +3687,81 @@ export default function App() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div className="bg-glass p-8 rounded-[40px] border border-red-500/30 shadow-2xl mt-12">
+                  <h3 className="text-red-500 font-display text-3xl mb-8 flex items-center gap-4">
+                    <ShieldAlert className="w-8 h-8" /> רשימת לקוחות משנית (חסומים)
+                  </h3>
+                  <p className="text-gray-400 mb-6 font-bold">משתמשים ברשימה זו חסומים ולא יכולים להתחבר או להיכנס לאתר.</p>
+                  
+                  <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-right">
+                      <thead>
+                        <tr className="text-gray-500 border-b border-white/5 text-sm uppercase tracking-widest">
+                          <th className="pb-6 pr-4">לקוח</th>
+                          <th className="pb-6 pr-4">סיסמה</th>
+                          <th className="pb-6 pr-4">פעילות אחרונה</th>
+                          <th className="pb-6 pr-4 text-left">פעולות</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {allUsers
+                          .filter(u => u.isBanned)
+                          .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0))
+                          .map((u, idx) => {
+                            const mailKey = u.emailKey;
+                            const isOnline = u.lastActive && (Date.now() - u.lastActive < 5 * 60 * 1000);
+                            return (
+                              <tr key={idx} className="hover:bg-white/[0.02] transition-colors group opacity-50 grayscale">
+                                <td className="py-6 pr-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                                    <div>
+                                      <div className="font-bold text-white flex items-center gap-2">
+                                        {u.email}
+                                        <ShieldAlert className="w-4 h-4 text-red-500" />
+                                      </div>
+                                      <div className="text-xs text-gray-500">{u.emailKey?.replace(/,/g, '.')}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-6 pr-4">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-sm tracking-widest text-gray-400 bg-white/5 px-3 py-1 rounded-lg select-all">
+                                      {u.password || '•••'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-6 pr-4">
+                                  <div className="text-sm font-bold text-gray-500">
+                                    {u.lastActive ? new Date(u.lastActive).toLocaleString('he-IL') : 'לא ידוע'}
+                                  </div>
+                                </td>
+                                <td className="py-6 pr-4 text-left">
+                                  <button 
+                                      onClick={() => {
+                                        setConfirmAction({
+                                          message: 'האם אתה בטוח שברצונך להחזיר משתמש זה לרשימה הראשית ולבטל את חסימתו?',
+                                          onConfirm: () => handleBanUser(mailKey, false)
+                                        });
+                                      }}
+                                      className="px-4 py-2 rounded-xl text-sm font-black transition-all bg-green-600/10 text-green-500 hover:bg-green-600/20"
+                                    >
+                                      החזר לרשימה ראשית
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        {allUsers.filter(u => u.isBanned).length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-gray-500">אין משתמשים חסומים במערכת</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
             </motion.section>
@@ -4722,14 +4797,14 @@ export default function App() {
                       </>
                     )}
                     <button 
-                      onClick={() => { setSelectedPaymentMethod('PayPal'); setConfirmPlacement(true); }}
-                      className={`flex items-center justify-between gap-4 p-6 rounded-3xl border-2 transition-all ${selectedPaymentMethod === 'PayPal' ? 'bg-[#00457C]/20 border-[#00457C] scale-[1.02]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                      onClick={() => { setSelectedPaymentMethod('אשראי'); setConfirmPlacement(true); }}
+                      className={`flex items-center justify-between gap-4 p-6 rounded-3xl border-2 transition-all ${selectedPaymentMethod === 'אשראי' ? 'bg-[#00457C]/20 border-[#00457C] scale-[1.02]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                     >
                       <div className="flex items-center gap-4">
                         <div className="bg-[#00457C] p-3 rounded-xl shadow-lg"><Wallet className="w-6 h-6 text-white" /></div>
-                        <span className="text-white font-black text-xl">בשביל פייפאל לחצו כאן</span>
+                        <span className="text-white font-black text-xl">בשביל תשלום באשראי לחצו כאן</span>
                       </div>
-                      {selectedPaymentMethod === 'PayPal' && <CheckCircle className="text-[#00457C] w-8 h-8" />}
+                      {selectedPaymentMethod === 'אשראי' && <CheckCircle className="text-[#00457C] w-8 h-8" />}
                     </button>
                   </div>
 
@@ -4865,17 +4940,17 @@ export default function App() {
                     )}
 
                     {/* PayPal Button */}
-                    {(lastOrderPaymentMethod === 'PayPal' || lastOrderPaymentMethod === 'כללי' || !lastOrderPaymentMethod) && (
+                    {(lastOrderPaymentMethod === 'אשראי' || lastOrderPaymentMethod === 'PayPal' || lastOrderPaymentMethod === 'כללי' || !lastOrderPaymentMethod) && (
                     <button 
                       onClick={() => {
                         if (settings.paypalLink) window.open(settings.paypalLink, '_blank');
-                        else setAlertMessage('קישור ה-PayPal עדיין לא הוגדר על ידי המנהל.');
+                        else setAlertMessage('קישור תשלום אשראי עדיין לא הוגדר על ידי המנהל.');
                       }} 
                       className="flex items-center justify-between gap-4 bg-linear-to-r from-[#003087] to-[#0070ba] p-6 rounded-[30px] text-xl font-black border-2 border-[#009cde]/50 hover:scale-105 transition-all shadow-xl text-white group/btn w-full mt-4"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="bg-white p-2 rounded-xl"><img src="https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg" className="h-6" /></div>
-                        <span>להשלמת קנייה פייפאל לחצו כאן</span>
+                        <div className="bg-white p-2 rounded-xl"><Wallet className="w-6 h-6 text-[#003087]" /></div>
+                        <span>לתשלום באשראי לחצו כאן</span>
                       </div>
                       <ArrowLeft className="w-6 h-6 text-white group-hover/btn:translate-x-[-5px] transition-transform" />
                     </button>
