@@ -3262,6 +3262,17 @@ export default function App() {
                         <input placeholder="PayBox Label" className="bg-black/60 border-white/10" value={settings.payboxLabel} onChange={(e) => setSettings({...settings, payboxLabel: e.target.value})} />
                         <input placeholder="PayBox Link" className="bg-black/60 border-white/10" value={settings.payboxLink} onChange={(e) => setSettings({...settings, payboxLink: e.target.value})} />
                       </div>
+                      <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
+                        <label className="text-white font-bold text-lg flex items-center justify-between w-full cursor-pointer">
+                          <span>פייפאל עסקי (תשלום יחיד)</span>
+                          <input 
+                            type="checkbox" 
+                            className="w-6 h-6 accent-pri cursor-pointer"
+                            checked={!!settings.paypalOnlyMode}
+                            onChange={(e) => setSettings({...settings, paypalOnlyMode: e.target.checked})}
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -4648,26 +4659,30 @@ export default function App() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
-                    <button 
-                      onClick={() => { setSelectedPaymentMethod('פייבוקס'); setConfirmPlacement(true); }}
-                      className={`flex items-center justify-between gap-4 p-6 rounded-3xl border-2 transition-all ${selectedPaymentMethod === 'פייבוקס' ? 'bg-[#1ED2C8]/20 border-[#1ED2C8] scale-[1.02]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="bg-[#1ED2C8] p-3 rounded-xl shadow-lg"><Wallet className="w-6 h-6 text-white" /></div>
-                        <span className="text-white font-black text-xl">בשביל פייבוקס לחצו כאן</span>
-                      </div>
-                      {selectedPaymentMethod === 'פייבוקס' && <CheckCircle className="text-[#1ED2C8] w-8 h-8" />}
-                    </button>
-                    <button 
-                      onClick={() => { setSelectedPaymentMethod('Bit'); setConfirmPlacement(true); }}
-                      className={`flex items-center justify-between gap-4 p-6 rounded-3xl border-2 transition-all ${selectedPaymentMethod === 'Bit' ? 'bg-[#003087]/20 border-[#003087] scale-[1.02]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="bg-[#003087] p-3 rounded-xl shadow-lg"><CreditCard className="w-6 h-6 text-white" /></div>
-                        <span className="text-white font-black text-xl">בשביל ביט לחצו כאן</span>
-                      </div>
-                      {selectedPaymentMethod === 'Bit' && <CheckCircle className="text-[#003087] w-8 h-8" />}
-                    </button>
+                    {!settings.paypalOnlyMode && (
+                      <>
+                        <button 
+                          onClick={() => { setSelectedPaymentMethod('פייבוקס'); setConfirmPlacement(true); }}
+                          className={`flex items-center justify-between gap-4 p-6 rounded-3xl border-2 transition-all ${selectedPaymentMethod === 'פייבוקס' ? 'bg-[#1ED2C8]/20 border-[#1ED2C8] scale-[1.02]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="bg-[#1ED2C8] p-3 rounded-xl shadow-lg"><Wallet className="w-6 h-6 text-white" /></div>
+                            <span className="text-white font-black text-xl">בשביל פייבוקס לחצו כאן</span>
+                          </div>
+                          {selectedPaymentMethod === 'פייבוקס' && <CheckCircle className="text-[#1ED2C8] w-8 h-8" />}
+                        </button>
+                        <button 
+                          onClick={() => { setSelectedPaymentMethod('Bit'); setConfirmPlacement(true); }}
+                          className={`flex items-center justify-between gap-4 p-6 rounded-3xl border-2 transition-all ${selectedPaymentMethod === 'Bit' ? 'bg-[#003087]/20 border-[#003087] scale-[1.02]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="bg-[#003087] p-3 rounded-xl shadow-lg"><CreditCard className="w-6 h-6 text-white" /></div>
+                            <span className="text-white font-black text-xl">בשביל ביט לחצו כאן</span>
+                          </div>
+                          {selectedPaymentMethod === 'Bit' && <CheckCircle className="text-[#003087] w-8 h-8" />}
+                        </button>
+                      </>
+                    )}
                     <button 
                       onClick={() => { setSelectedPaymentMethod('PayPal'); setConfirmPlacement(true); }}
                       className={`flex items-center justify-between gap-4 p-6 rounded-3xl border-2 transition-all ${selectedPaymentMethod === 'PayPal' ? 'bg-[#00457C]/20 border-[#00457C] scale-[1.02]' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}

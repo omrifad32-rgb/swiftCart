@@ -122,6 +122,7 @@ export interface AppSettings {
   bitLabel?: string;
   paypalLabel?: string;
   payboxLabel?: string;
+  paypalOnlyMode?: boolean;
   flashSaleDuration?: number;
   freeShippingThreshold?: number;
   cashbackPercent?: number;
