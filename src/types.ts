@@ -112,10 +112,8 @@ export interface AppSettings {
   ourStory?: string;
   specialDayEnabled?: boolean;
   specialDayName?: string;
+  specialDayDescription?: string;
   globalDiscountPercent?: number;
-  singleProductMode?: boolean;
-  featuredProductId?: string;
-  relatedProductIds?: string[];
   bitLink?: string;
   paypalLink?: string;
   payboxLink?: string;
@@ -123,7 +121,6 @@ export interface AppSettings {
   paypalLabel?: string;
   payboxLabel?: string;
   paypalOnlyMode?: boolean;
-  flashSaleDuration?: number;
   freeShippingThreshold?: number;
   cashbackPercent?: number;
   aboutImages?: string[];

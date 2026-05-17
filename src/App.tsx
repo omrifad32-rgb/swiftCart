@@ -125,8 +125,6 @@ export default function App() {
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
   const [admins, setAdmins] = useState<Record<string, boolean>>({});
-  const [flashSaleProd, setFlashSaleProd] = useState<Product | null>(null);
-  const [flashSaleTime, setFlashSaleTime] = useState(0);
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('sc_cart');
     try {
@@ -170,10 +168,8 @@ export default function App() {
     ourStory: "הסיפור שלנו מתחיל באהבה לאקסטרים...",
     specialDayEnabled: false,
     specialDayName: "שבוע המכירות הגדול",
+    specialDayDescription: "כלל המוצרים בחנות המשתתפים במבצע",
     globalDiscountPercent: 0,
-    singleProductMode: false,
-    featuredProductId: '',
-    relatedProductIds: [],
     bitLink: '',
     paypalLink: '',
     payboxLink: '',
@@ -310,30 +306,15 @@ export default function App() {
     }
   }, []);
   useEffect(() => {
-    if (settings.singleProductMode) {
-      document.body.classList.add('single-prod-theme');
-      document.body.style.setProperty('--color-bg-space-1', '#050000');
-      document.body.style.setProperty('--color-bg-space-2', '#200000');
-      document.body.style.setProperty('--color-bg-space-3', '#000000');
-      document.body.style.setProperty('--color-pri', '#ff0000');
-      document.body.style.setProperty('--color-pri-glow', 'rgba(255, 0, 0, 0.5)');
+    if (localTheme === 'light') {
+      document.body.classList.add('light-theme');
     } else {
-      document.body.classList.remove('single-prod-theme');
-      document.body.style.removeProperty('--color-bg-space-1');
-      document.body.style.removeProperty('--color-bg-space-2');
-      document.body.style.removeProperty('--color-bg-space-3');
-      document.body.style.removeProperty('--color-pri');
-      document.body.style.removeProperty('--color-pri-glow');
-      
-      if (localTheme === 'light') {
-        document.body.classList.add('light-theme');
-      } else {
-        document.body.classList.remove('light-theme');
-      }
+      document.body.classList.remove('light-theme');
     }
+    
     safeSetItem('sc_theme', localTheme);
     if (user) set(ref(db, `users/${user.replace(/\./g, ',')}/theme`), localTheme);
-  }, [localTheme, user, settings.singleProductMode]);
+  }, [localTheme, user]);
 
   // Body scroll lock for modals - ensuring content is still scrollable but background is locked
   useEffect(() => {
@@ -652,9 +633,8 @@ export default function App() {
       const price = Number(item.selectedVariant?.price ?? item.price);
       return acc + (isNaN(price) ? 0 : price) * item.qty;
     }, 0);
-    const globalDisc = settings.globalDiscountPercent || 0;
-    const flashSaleDisc = flashSaleTime > 0 ? 10 : 0;
-    const totalDisc = globalDisc + flashSaleDisc;
+    const globalDisc = settings.specialDayEnabled ? (settings.globalDiscountPercent || 0) : 0;
+    const totalDisc = globalDisc;
     let discounted = Math.max(0, raw * (1 - totalDisc / 100));
     
     if (appliedCoupon && appliedCoupon.active) {
@@ -673,7 +653,7 @@ export default function App() {
       return Math.max(0, discounted - userBalance);
     }
     return discounted;
-  }, [cart, settings.globalDiscountPercent, flashSaleTime, useBalanceInCheckout, userBalance, appliedCoupon]);
+  }, [cart, settings.specialDayEnabled, settings.globalDiscountPercent, useBalanceInCheckout, userBalance, appliedCoupon]);
 
   const currentShippingCost = useMemo(() => {
     if (cart.length === 0) return 0;
@@ -714,12 +694,13 @@ export default function App() {
         const data = snapshot.val();
         if (data && data.isBanned) {
           setIsBanned(true);
-          // Auto logout if banned? For now just block actions
         } else {
           setIsBanned(false);
         }
       });
       return () => unsub();
+    } else {
+      setIsBanned(false);
     }
   }, [user]);
 
@@ -992,6 +973,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    signOut(auth).catch(() => {});
     setUser(null);
     setIsAdmin(false);
     setIsOwner(false);
@@ -1045,7 +1027,8 @@ export default function App() {
     let totalWithShipping = cartTotal + currentShippingCost;
     
     // Balance usage logic
-    const discountedTotal = Math.round(cart.reduce((acc, item) => acc + (Number(item.selectedVariant?.price ?? item.price) * item.qty), 0) * (1 - ((settings.globalDiscountPercent || 0) + (flashSaleTime > 0 ? 10 : 0)) / 100));
+    const globalDisc = settings.specialDayEnabled ? (settings.globalDiscountPercent || 0) : 0;
+    const discountedTotal = Math.round(cart.reduce((acc, item) => acc + (Number(item.selectedVariant?.price ?? item.price) * item.qty), 0) * (1 - globalDisc / 100));
     const amountFromBalance = useBalanceInCheckout ? Math.min(userBalance, discountedTotal) : 0;
 
     // Calculate net profit: (Sales - Costs)
@@ -1348,14 +1331,6 @@ export default function App() {
     }
   };
 
-  // Flash Sale Timer logic
-  useEffect(() => {
-    if (flashSaleTime > 0) {
-      const timer = setInterval(() => setFlashSaleTime(prev => prev - 1), 1000);
-      return () => clearInterval(timer);
-    }
-  }, [flashSaleTime]);
-
   const navItems = [
     { id: 'catalog', label: 'חנות', icon: Zap },
     { id: 'reviews', label: 'ביקורות', icon: Star },
@@ -1376,6 +1351,22 @@ export default function App() {
           {settings.title}
         </div>
         <p className="text-gray-500 font-bold tracking-widest mt-4">המערכת עולה לאוויר...</p>
+      </div>
+    );
+  }
+
+  if (isBanned && !isAdmin) {
+    return (
+      <div className="fixed inset-0 bg-[#050508] z-[99999] flex flex-col items-center justify-center text-center p-6">
+        <ShieldAlert className="w-40 h-40 text-red-500 mb-8 drop-shadow-[0_0_50px_rgba(239,68,68,0.8)]" />
+        <h1 className="font-display text-4xl text-red-500 mb-4 tracking-widest leading-tight">חשבונך נחסם</h1>
+        <p className="text-gray-300 text-xl font-bold leading-relaxed mb-8">אינך יכול לגשת לאתר זה יותר עקב הפרת תנאי השימוש.</p>
+        <button 
+          className="btn-main font-bold mt-4 px-8 py-3 w-auto m-auto max-w-[200px]" 
+          onClick={handleLogout}
+        >
+          התנתק מהמערכת
+        </button>
       </div>
     );
   }
@@ -1544,12 +1535,17 @@ export default function App() {
             className="mb-8"
           >
             <div className="bg-linear-to-r from-gold via-acc to-gold p-4 rounded-3xl text-center shadow-[0_0_30px_rgba(252,238,10,0.4)] animate-pulse relative overflow-hidden">
-              <div className="flex items-center justify-center gap-6 relative z-10">
-                <Flame className="w-8 h-8 text-white hidden md:block" />
-                <h2 className="text-xl md:text-3xl font-display font-black text-white uppercase tracking-tighter">
-                  {settings.specialDayName} 🔥 {settings.globalDiscountPercent}% הנחה על כלללל האתר!
-                </h2>
-                <Flame className="w-8 h-8 text-white hidden md:block" />
+              <div className="flex flex-col items-center justify-center gap-2 relative z-10">
+                <div className="flex items-center justify-center gap-6">
+                  <Flame className="w-8 h-8 text-white hidden md:block" />
+                  <h2 className="text-xl md:text-3xl font-display font-black text-white uppercase tracking-tighter">
+                    {settings.specialDayName} 🔥 {settings.globalDiscountPercent}% הנחה!
+                  </h2>
+                  <Flame className="w-8 h-8 text-white hidden md:block" />
+                </div>
+                {settings.specialDayDescription && (
+                  <p className="text-white text-lg font-bold">{settings.specialDayDescription}</p>
+                )}
               </div>
             </div>
           </motion.div>
@@ -1734,7 +1730,7 @@ export default function App() {
                       <Info className="w-8 h-8 md:w-12 md:h-12 text-pri" />
                     </div>
 
-                    {settings.aboutImagesPosition === 'top' && settings.aboutImages && settings.aboutImages.length > 0 && (
+                    {settings.aboutImagesPosition === 'top' && settings.aboutImages && settings.aboutImages.length > 0 && !(settings.ourStory || "").includes("[תמונה") && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
                         {settings.aboutImages.map((img, i) => (
                           <div key={i} className="rounded-3xl overflow-hidden aspect-video bg-black/40 border border-white/5">
@@ -1744,11 +1740,21 @@ export default function App() {
                       </div>
                     )}
 
-                    <p className="text-gray-400 text-xl md:text-3xl leading-relaxed font-bold whitespace-pre-wrap max-w-4xl mr-auto mb-10">
-                      {settings.ourStory || "הסיפור שלנו מתחיל בחלום לספק את הציוד הטוב ביותר למי שלא מפחד מאתגרים. אנחנו כאן כדי לתת לכם את הכוח לפרוץ גבולות."}
-                    </p>
+                    <div className="text-gray-400 text-xl md:text-3xl leading-relaxed font-bold whitespace-pre-wrap max-w-4xl tracking-wide mr-auto mb-10">
+                      {(settings.ourStory || "הסיפור שלנו מתחיל בחלום לספק את הציוד הטוב ביותר...").split(/(\[תמונה \d\])/g).map((part, i) => {
+                        const match = part.match(/\[תמונה (\d)\]/);
+                        if (match) {
+                          const idx = Number(match[1]) - 1;
+                          if (settings.aboutImages?.[idx]) {
+                             return <div key={i} className="my-8 rounded-3xl overflow-hidden bg-black/40 border border-white/5 w-full aspect-video"><img src={settings.aboutImages[idx]} className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" /></div>;
+                          }
+                          return null;
+                        }
+                        return <span key={i}>{part}</span>;
+                      })}
+                    </div>
 
-                    {(!settings.aboutImagesPosition || settings.aboutImagesPosition === 'bottom') && settings.aboutImages && settings.aboutImages.length > 0 && (
+                    {(!settings.aboutImagesPosition || settings.aboutImagesPosition === 'bottom') && settings.aboutImages && settings.aboutImages.length > 0 && !(settings.ourStory || "").includes("[תמונה") && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
                         {settings.aboutImages.map((img, i) => (
                           <div key={i} className="rounded-3xl overflow-hidden aspect-video bg-black/40 border border-white/5">
@@ -2071,18 +2077,6 @@ export default function App() {
 
                   <div className="pt-10 border-t border-white/10 mt-10">
                     <div className="bg-linear-to-br from-pri/5 to-black p-8 rounded-[40px] border border-pri/20 shadow-2xl space-y-4">
-                      {flashSaleTime > 0 && (
-                        <div className="bg-acc/10 border border-acc/30 p-4 rounded-2xl flex items-center justify-between mb-4 animate-pulse">
-                          <div className="flex items-center gap-2 text-acc font-black">
-                            <Clock className="w-6 h-6" />
-                            <span>בונוס הזמנה מהירה!</span>
-                          </div>
-                          <div className="text-2xl font-display font-black text-white">
-                            {Math.floor(flashSaleTime / 60)}:{String(flashSaleTime % 60).padStart(2, '0')}
-                          </div>
-                        </div>
-                      )}
-
                       {/* Original Subtotal before discounts */}
                       <div className="flex justify-between items-center text-xl font-bold">
                         <span className="text-gray-400 font-bold">סיכום ביניים:</span>
@@ -2115,7 +2109,7 @@ export default function App() {
                       </div>
 
                       {/* Savings Breakdown */}
-                      {((settings.globalDiscountPercent || 0) > 0 || (flashSaleTime > 0)) && (
+                      {(settings.specialDayEnabled && (settings.globalDiscountPercent || 0) > 0) && (
                         <div className="flex justify-between items-center text-xl font-bold text-acc">
                           <span className="font-bold">חיסכון מהנחות (כולל בונוסים):</span>
                           <span>₪{Math.round(cart.reduce((acc, item) => acc + (Number(item.selectedVariant?.price ?? item.price) * item.qty), 0) - cartTotal)} -</span>
@@ -3030,6 +3024,15 @@ export default function App() {
                         </div>
                       ))}
                     </div>
+                    <button 
+                      className="btn-main py-4 px-8 text-xl"
+                      onClick={() => {
+                        update(ref(db, 'settings'), settings);
+                        setAlertMessage('תמונות הקטגוריות עודכנו בהצלחה!');
+                      }}
+                    >
+                      שמור תמונות קטגוריות <CheckCircle2 className="w-6 h-6 ml-2 inline" />
+                    </button>
                   </div>
 
                   <div className="bg-glass p-8 rounded-[40px] border border-white/10 mb-12 shadow-2xl">
@@ -3218,22 +3221,32 @@ export default function App() {
                     <h3 className="text-gold font-display text-3xl mb-8 flex items-center gap-4">
                       <BadgePercent className="w-8 h-8" /> אירועים מיוחדים והנחות
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-right">
-                      <div>
-                        <label className="text-gray-500 font-bold block mb-3 text-right">שם האירוע (למשל: בלאק פריידי):</label>
-                        <input 
-                          className="bg-black/60 border-white/10 py-4 text-right"
-                          value={settings.specialDayName}
-                          onChange={(e) => setSettings({...settings, specialDayName: e.target.value})}
-                        />
+                    <div className="grid grid-cols-1 gap-8 mb-8 text-right">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                          <label className="text-gray-500 font-bold block mb-3 text-right">שם האירוע (למשל: בלאק פריידי):</label>
+                          <input 
+                            className="bg-black/60 border-white/10 py-4 text-right w-full"
+                            value={settings.specialDayName}
+                            onChange={(e) => setSettings({...settings, specialDayName: e.target.value})}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-gray-500 font-bold block mb-3 text-right">אחוז הנחה (שתכלס מקזז במחיר העגלה, 0-100):</label>
+                          <input 
+                            type="number"
+                            className="bg-black/60 border-white/10 py-4 text-right w-full"
+                            value={settings.globalDiscountPercent}
+                            onChange={(e) => setSettings({...settings, globalDiscountPercent: Number(e.target.value)})}
+                          />
+                        </div>
                       </div>
                       <div>
-                        <label className="text-gray-500 font-bold block mb-3 text-right">אחוז הנחה גלובלי (0-100):</label>
+                        <label className="text-gray-500 font-bold block mb-3 text-right">על מה ההנחה (למשל: על כל החנות מ1000 שח, במקום תיאורי סתם):</label>
                         <input 
-                          type="number"
-                          className="bg-black/60 border-white/10 py-4 text-right"
-                          value={settings.globalDiscountPercent}
-                          onChange={(e) => setSettings({...settings, globalDiscountPercent: Number(e.target.value)})}
+                          className="bg-black/60 border-white/10 py-4 text-right w-full"
+                          value={settings.specialDayDescription || ''}
+                          onChange={(e) => setSettings({...settings, specialDayDescription: e.target.value})}
                         />
                       </div>
                     </div>
@@ -3276,30 +3289,16 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-glass p-8 rounded-[40px] border border-blue-400/30 mb-12 shadow-2xl text-right">
-                    <h3 className="text-blue-400 font-display text-3xl mb-8 flex items-center gap-4">
-                      <Sparkles className="w-8 h-8" /> בונוס מהירות (Flash Sale)
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
-                      <div>
-                        <label className="text-gray-500 font-bold block mb-3">זמן בונוס (דקות):</label>
-                        <input 
-                          type="number"
-                          className="bg-black/60 border-white/10 py-4"
-                          value={settings.flashSaleDuration || 10}
-                          onChange={(e) => setSettings({...settings, flashSaleDuration: Number(e.target.value)})}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="bg-glass p-8 rounded-[40px] border border-white/10 mb-12 shadow-2xl text-right">
                     <h3 className="text-white font-display text-3xl mb-8 flex items-center gap-4">
                       <Info className="w-8 h-8" /> הסיפור שלנו
                     </h3>
+                    <p className="text-gray-400 font-bold mb-4">
+                      ניתן לשלב את התמונות בתוך הטקסט! פשוט רשום היכן שתרצה: <code>[תמונה 1]</code>, <code>[תמונה 2]</code> וכו', והתמונה תופיע בדיוק שם במקום בנפרד למעלה או למטה.
+                    </p>
                     <textarea 
                       placeholder="כתוב כאן את סיפור החברה..."
-                      className="bg-black/60 border-white/10 h-60 mb-8 text-right"
+                      className="bg-black/60 border-white/10 h-60 mb-8 text-right p-4 rounded-xl w-full"
                       value={settings.ourStory}
                       onChange={(e) => setSettings({...settings, ourStory: e.target.value})}
                     />
