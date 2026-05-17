@@ -1009,6 +1009,11 @@ export default function App() {
       setCheckoutStep('form');
       return;
     }
+    if (settings.bannedPhones && settings.bannedPhones.includes(checkoutData.phone)) {
+      setCheckoutError('שגיאה: לא ניתן לבצע רכישות ממספר או משתמש זה עקב הפרות תנאי תקנון האתר.');
+      setCheckoutStep('form');
+      return;
+    }
     
     setIsPlacingOrder(true);
     setCheckoutError(null);
@@ -1741,8 +1746,8 @@ export default function App() {
                     )}
 
                     <div className="text-gray-400 text-xl md:text-3xl leading-relaxed font-bold whitespace-pre-wrap max-w-4xl tracking-wide mr-auto mb-10">
-                      {(settings.ourStory || "הסיפור שלנו מתחיל בחלום לספק את הציוד הטוב ביותר...").split(/(\[תמונה \d\])/g).map((part, i) => {
-                        const match = part.match(/\[תמונה (\d)\]/);
+                      {(settings.ourStory || "הסיפור שלנו מתחיל בחלום לספק את הציוד הטוב ביותר...").split(/(\[תמונה\s*\d\])/g).map((part, i) => {
+                        const match = part.match(/\[תמונה\s*(\d)\]/);
                         if (match) {
                           const idx = Number(match[1]) - 1;
                           if (settings.aboutImages?.[idx]) {
@@ -2252,9 +2257,37 @@ export default function App() {
                                       <div className="text-xs text-gray-500 font-bold mb-2 uppercase text-right">פרטי לקוח:</div>
                                       <div className="text-xl font-bold mb-1 text-right">{order.name}</div>
                                       <div className="flex flex-col gap-1 items-end">
-                                        <a href={`tel:${order.phone}`} className="text-pri font-bold text-lg flex items-center gap-2">
-                                          {order.phone} <Phone className="w-4 h-4" />
-                                        </a>
+                                        <div className="flex items-center gap-3">
+                                          <button 
+                                            title="חסום משתמש/טלפון זה"
+                                            className="bg-red-500/10 text-red-500 p-2 rounded-lg hover:bg-red-500/20"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              const targetPhone = order.phone;
+                                              const targetEmail = order.email;
+                                              setConfirmAction({
+                                                message: `האם אתה בטוח שברצונך לחסום את ${order.name} מלבצע הזמנות?`,
+                                                onConfirm: () => {
+                                                  if (targetEmail && targetEmail !== 'אורח') {
+                                                    update(ref(db, `users/${targetEmail.replace(/\./g, ',')}`), { isBanned: true });
+                                                  }
+                                                  const newBannedPhones = [...(settings.bannedPhones || [])];
+                                                  if (!newBannedPhones.includes(targetPhone)) {
+                                                    newBannedPhones.push(targetPhone);
+                                                    update(ref(db, 'settings'), { bannedPhones: newBannedPhones });
+                                                    setSettings(prev => ({...prev, bannedPhones: newBannedPhones}));
+                                                  }
+                                                  setAlertMessage('המשתמש/טלפון נחסם בהצלחה!');
+                                                }
+                                              });
+                                            }}
+                                          >
+                                            <ShieldAlert className="w-4 h-4" />
+                                          </button>
+                                          <a href={`tel:${order.phone}`} className="text-pri font-bold text-lg flex items-center gap-2">
+                                            {order.phone} <Phone className="w-4 h-4" />
+                                          </a>
+                                        </div>
                                         {order.email && <div className="text-gray-400 text-sm">{order.email}</div>}
                                       </div>
                                     </div>
@@ -3172,63 +3205,6 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="bg-glass p-8 rounded-[40px] border border-acc/30 mb-12 shadow-2xl">
-                    <h3 className="text-acc font-display text-3xl mb-8 flex items-center gap-4">
-                      <Zap className="w-8 h-8" /> מצב מוצר יחיד (Single Product Mode)
-                    </h3>
-                    <div className="bg-black/40 p-6 rounded-3xl mb-8 border border-white/5">
-                      <p className="text-gray-400 mb-6 font-bold leading-relaxed">
-                        הפעלת מצב זה תהפוך את כל האתר לדף נחיתה ממוקד עבור מוצר אחד בלבד (ועד 4 מוצרים נלווים).
-                        העיצוב ישתנה לאדום-שחור יוקרתי.
-                      </p>
-                      <button 
-                        onClick={() => setSettings({...settings, singleProductMode: !settings.singleProductMode})}
-                        className={`w-full py-5 rounded-2xl font-black text-xl transition-all ${settings.singleProductMode ? 'bg-acc text-white shadow-[0_0_20px_rgba(255,0,85,0.5)]' : 'bg-white/10 text-white'}`}
-                      >
-                        {settings.singleProductMode ? 'ביטול מצב מוצר יחיד' : 'הפעל מצב מוצר יחיד'}
-                      </button>
-                    </div>
-                    {settings.singleProductMode && (
-                      <div className="space-y-6">
-                        <div>
-                          <label className="text-gray-500 font-bold block mb-3">מזהה מוצר ראשי (ID):</label>
-                          <select 
-                            className="bg-black/60 border-white/10 py-4 rounded-2xl px-6 font-bold w-full"
-                            value={settings.featuredProductId}
-                            onChange={(e) => setSettings({...settings, featuredProductId: e.target.value})}
-                          >
-                            <option value="">בחר מוצר...</option>
-                            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-gray-500 font-bold block mb-3 text-sm">בחירת מוצרים נלווים (עד 4):</label>
-                          <div className="grid grid-cols-2 gap-3">
-                            {products.filter(p => p.id !== settings.featuredProductId).map(p => {
-                              const isSelected = settings.relatedProductIds?.includes(p.id);
-                              return (
-                                <button
-                                  key={p.id}
-                                  onClick={() => {
-                                    const current = settings.relatedProductIds || [];
-                                    if (isSelected) {
-                                      setSettings({...settings, relatedProductIds: current.filter(id => id !== p.id)});
-                                    } else if (current.length < 4) {
-                                      setSettings({...settings, relatedProductIds: [...current, p.id]});
-                                    }
-                                  }}
-                                  className={`p-3 rounded-xl border text-xs font-bold transition-all text-right ${isSelected ? 'bg-pri/20 border-pri text-pri' : 'bg-black/40 border-white/5 text-gray-500'}`}
-                                >
-                                  {p.name}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   <div className="bg-glass p-8 rounded-[40px] border border-gold/30 mb-12 shadow-2xl text-right">
                     <h3 className="text-gold font-display text-3xl mb-8 flex items-center gap-4">
                       <BadgePercent className="w-8 h-8" /> אירועים מיוחדים והנחות
@@ -3263,10 +3239,15 @@ export default function App() {
                       </div>
                     </div>
                     <button 
-                      onClick={() => setSettings({...settings, specialDayEnabled: !settings.specialDayEnabled})}
+                      onClick={() => {
+                        const nextSettings = {...settings, specialDayEnabled: !settings.specialDayEnabled};
+                        setSettings(nextSettings);
+                        update(ref(db, 'settings'), { specialDayEnabled: nextSettings.specialDayEnabled });
+                        setAlertMessage('הגדרת אירוע מיוחד עודכנה נשמרה בשרת!');
+                      }}
                       className={`w-full py-5 rounded-2xl font-black text-xl transition-all ${settings.specialDayEnabled ? 'bg-gold text-black' : 'bg-white/10 text-white'}`}
                     >
-                      {settings.specialDayEnabled ? 'בטל אירוע מיוחד' : 'הפעל אירוע מיוחד'}
+                      {settings.specialDayEnabled ? 'בטל אירוע מיוחד (כעת פעיל)' : 'הפעל אירוע מיוחד'}
                     </button>
                   </div>
 
@@ -3323,9 +3304,14 @@ export default function App() {
                             <>
                               <img src={settings.aboutImages[i]} className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" />
                               <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
-                                const list = [...(settings.aboutImages || [])];
-                                list.splice(i, 1);
-                                setSettings({...settings, aboutImages: list});
+                                setConfirmAction({
+                                  message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
+                                  onConfirm: () => {
+                                    const list = [...(settings.aboutImages || [])];
+                                    list.splice(i, 1);
+                                    setSettings({...settings, aboutImages: list});
+                                  }
+                                });
                               }}><X className="w-3 h-3" /></button>
                             </>
                           ) : (
@@ -4645,6 +4631,10 @@ export default function App() {
                           setCheckoutError('עליך לאשר את תקנון האתר');
                           return;
                         }
+                        if (settings.bannedPhones && settings.bannedPhones.includes(checkoutData.phone)) {
+                          setCheckoutError('שגיאה: לא ניתן לבצע רכישות ממספר או משתמש זה עקב הפרות תנאי תקנון האתר.');
+                          return;
+                        }
                         setCheckoutStep('payment');
                       }}
                     >
@@ -5006,7 +4996,12 @@ export default function App() {
                       {newProdData.img ? (
                         <>
                           <img src={newProdData.img} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                          <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => setNewProdData({...newProdData, img: ''})}><X className="w-3 h-3" /></button>
+                          <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
+                            setConfirmAction({
+                              message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
+                              onConfirm: () => setNewProdData({...newProdData, img: ''})
+                            });
+                          }}><X className="w-3 h-3" /></button>
                         </>
                       ) : (
                         <label className="cursor-pointer flex flex-col items-center w-full h-full justify-center">
@@ -5022,9 +5017,14 @@ export default function App() {
                           <>
                             <img src={newProdData.extraImages[i]} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                             <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
-                              const list = [...(newProdData.extraImages || [])];
-                              list.splice(i, 1);
-                              setNewProdData({...newProdData, extraImages: list});
+                              setConfirmAction({
+                                message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
+                                onConfirm: () => {
+                                  const list = [...(newProdData.extraImages || [])];
+                                  list.splice(i, 1);
+                                  setNewProdData({...newProdData, extraImages: list});
+                                }
+                              });
                             }}><X className="w-3 h-3" /></button>
                           </>
                         ) : (
@@ -5651,7 +5651,12 @@ export default function App() {
                       {editProdData.img ? (
                         <>
                           <img src={editProdData.img} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                          <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => setEditProdData({...editProdData, img: ''})}><X className="w-3 h-3" /></button>
+                          <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
+                            setConfirmAction({
+                              message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
+                              onConfirm: () => setEditProdData({...editProdData, img: ''})
+                            });
+                          }}><X className="w-3 h-3" /></button>
                         </>
                       ) : (
                         <label className="cursor-pointer flex flex-col items-center w-full h-full justify-center text-center">
@@ -5667,9 +5672,14 @@ export default function App() {
                           <>
                             <img src={editProdData.extraImages[i]} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                             <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
-                              const list = [...(editProdData.extraImages || [])];
-                              list.splice(i, 1);
-                              setEditProdData({...editProdData, extraImages: list});
+                              setConfirmAction({
+                                message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
+                                onConfirm: () => {
+                                  const list = [...(editProdData.extraImages || [])];
+                                  list.splice(i, 1);
+                                  setEditProdData({...editProdData, extraImages: list});
+                                }
+                              });
                             }}><X className="w-3 h-3" /></button>
                           </>
                         ) : (

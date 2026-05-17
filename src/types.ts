@@ -127,4 +127,5 @@ export interface AppSettings {
   aboutImagesPosition?: 'top' | 'bottom';
   categoryImages?: Record<string, string>;
   bankTransferPhone?: string;
+  bannedPhones?: string[];
 }
