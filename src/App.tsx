@@ -2698,7 +2698,14 @@ export default function App() {
                                         <td className="py-6 pr-4 text-left">
                                           <div className="flex items-center justify-end gap-3">
                                             <button 
-                                              onClick={() => handleBanUser(mailKey, !u.isBanned)}
+                                              onClick={() => {
+                                                setConfirmAction({
+                                                  message: u.isBanned 
+                                                    ? 'האם אתה בטוח שברצונך לבטל את החסימה של משתמש זה?' 
+                                                    : 'האם אתה בטוח שברצונך לחסום משתמש זה? (הוא לא יוכל לגשת לאתר)',
+                                                  onConfirm: () => handleBanUser(mailKey, !u.isBanned)
+                                                });
+                                              }}
                                               className={`px-4 py-2 rounded-xl text-sm font-black transition-all ${u.isBanned ? 'bg-green-600/10 text-green-500 hover:bg-green-600/20' : 'bg-red-600/10 text-red-500 hover:bg-red-600/20'}`}
                                             >
                                               {u.isBanned ? 'בטל חסימה' : 'חסימה'}
@@ -2995,7 +3002,12 @@ export default function App() {
                           <div className="flex justify-between items-center">
                             <label className="text-white font-bold block">{cat}:</label>
                             <button 
-                              onClick={() => handleDeleteCategory(idx)}
+                              onClick={() => {
+                                setConfirmAction({
+                                  message: `האם אתה בטוח שברצונך למחוק את הקטגוריה "${cat}"?`,
+                                  onConfirm: () => handleDeleteCategory(idx)
+                                });
+                              }}
                               className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
