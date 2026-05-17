@@ -1943,7 +1943,7 @@ export default function App() {
                     {p.oldPrice && Number(p.oldPrice) > Number(p.price) && (
                       <div className={`sale-tag`}>-{Math.round(100 - (Number(p.price) / Number(p.oldPrice) * 100))}%</div>
                     )}
-                    {(settings.globalDiscountPercent || 0) > 0 && (
+                    {settings.specialDayEnabled && (settings.globalDiscountPercent || 0) > 0 && (
                       <div className={`absolute top-4 right-4 z-20 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg border border-white/20 bg-linear-to-r from-acc to-gold`}>
                         הנחת {settings.specialDayName || 'אירוע'}!
                       </div>
