@@ -1414,10 +1414,10 @@ export default function App() {
           <div className="relative">
             <button 
               onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className="w-10 h-10 shrink-0 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10"
+              className="w-8 h-8 shrink-0 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10"
               title="שנה שפה / Change Language"
             >
-              <Globe className="w-5 h-5 text-white" />
+              <Globe className="w-4 h-4 text-white" />
             </button>
             
             <AnimatePresence>
@@ -1439,7 +1439,7 @@ export default function App() {
                   ].map(lang => (
                     <button
                       key={lang.code}
-                      className="px-5 py-3 text-sm text-center hover:bg-white/10 transition-all text-white font-bold border-b border-white/5 last:border-0"
+                      className="px-4 py-2 text-xs text-center hover:bg-white/10 transition-all text-white font-bold border-b border-white/5 last:border-0"
                       onClick={() => {
                         if (lang.code === 'iw') {
                           // Clear google translate cookies completely to restore original language
@@ -1501,19 +1501,19 @@ export default function App() {
 
           <button 
             onClick={() => setLocalTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-            className="w-10 h-10 shrink-0 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10"
+            className="w-8 h-8 shrink-0 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all border border-white/10"
           >
-            {localTheme === 'dark' ? <Sun className="w-5 h-5 text-gold" /> : <Moon className="w-5 h-5 text-pri" />}
+            {localTheme === 'dark' ? <Sun className="w-4 h-4 text-gold" /> : <Moon className="w-4 h-4 text-pri" />}
           </button>
           <div 
-            className="user-status flex items-center gap-3 bg-white/5 px-4 py-2 rounded-full border border-white/10 cursor-pointer hover:bg-white/10 transition-all"
+            className="user-status flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 cursor-pointer hover:bg-white/10 transition-all"
             onClick={() => {
               setAuthNote(null);
               setShowAuthModal(true);
             }}
           >
-            <User className={`w-6 h-6 ${user ? 'text-green-400' : 'text-pri'}`} />
-            <span translate="no" className="text-sm font-bold text-white hidden sm:inline">
+            <User className={`w-4 h-4 ${user ? 'text-green-400' : 'text-pri'}`} />
+            <span translate="no" className="text-xs font-bold text-white hidden sm:inline">
               {user ? user.split('@')[0] : <span translate="yes">התחברות</span>}
             </span>
           </div>
@@ -1522,12 +1522,12 @@ export default function App() {
             className="relative cursor-pointer group"
             onClick={() => setActivePage('cart')}
           >
-            <ShoppingCart className="w-8 h-8 group-hover:text-pri transition-colors" />
+            <ShoppingCart className="w-6 h-6 group-hover:text-pri transition-colors" />
             {cartCount > 0 && (
               <motion.span 
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute -top-2 -right-2 bg-acc text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-black"
+                className="absolute -top-1.5 -right-1.5 bg-acc text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#12121A] md:w-5 md:h-5 md:text-[10px]"
               >
                 {cartCount}
               </motion.span>
@@ -1674,7 +1674,7 @@ export default function App() {
               className="py-6 pb-40 md:pb-12 space-y-12"
             >
               <div className="text-center pb-8 border-b border-white/10 max-w-4xl mx-auto pt-6 relative inline-block w-full">
-                <h1 translate="no" className="font-paint text-7xl md:text-[8rem] mb-4 tracking-wider px-2 flex justify-center flex-wrap relative z-10 leading-tight" dir="auto">
+                <h1 translate="no" className="font-paint text-6xl md:text-7xl mb-4 tracking-wider px-2 flex justify-center flex-wrap relative z-10 leading-tight" dir="auto">
                   {settings.title.split('').map((char, i) => {
                     const palette = localTheme === 'light' ? [
                       { top: '#000000', side: '#9CA3AF', glow: 'rgba(0,0,0,0.2)' }
