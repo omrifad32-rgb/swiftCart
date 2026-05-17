@@ -82,17 +82,17 @@
     @apply bg-white/90 border-[#dadce0] shadow-[0_-10px_40px_rgba(0,0,0,0.03)] backdrop-blur-2xl;
   }
 
-  body.light-theme .text-white:not(.btn-main, .btn-main *, .btn-delete, .btn-delete *, .sale-tag, .oos-text, .cat-tab.active, .cat-tab.active *),
+  body.light-theme .text-white:not(.btn-main, .btn-main *, .btn-delete, .btn-delete *, .sale-tag, .oos-text, .cat-tab.active, .cat-tab.active *, .bg-pri, .bg-pri *),
   body.light-theme .text-gray-300,
   body.light-theme .text-gray-400 {
-    @apply text-[#5f6368];
+    color: #111827 !important;
   }
 
   body.light-theme h1,
   body.light-theme h2,
   body.light-theme h3,
   body.light-theme .text-white.sec-title {
-    @apply text-[#202124];
+    color: #000000 !important;
   }
 
   body.light-theme .bg-glass,

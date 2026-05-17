@@ -1676,7 +1676,9 @@ export default function App() {
               <div className="text-center pb-8 border-b border-white/10 max-w-4xl mx-auto pt-6 relative inline-block w-full">
                 <h1 translate="no" className="font-paint text-7xl md:text-[8rem] mb-4 tracking-wider px-2 flex justify-center flex-wrap relative z-10 leading-tight" dir="auto">
                   {settings.title.split('').map((char, i) => {
-                    const palette = [
+                    const palette = localTheme === 'light' ? [
+                      { top: '#000000', side: '#9CA3AF', glow: 'rgba(0,0,0,0.2)' }
+                    ] : [
                       { top: '#FFFFFF', side: '#CBD5E1', glow: 'rgba(255,255,255,0.6)' }
                     ];
                     const s = palette[i % palette.length];
@@ -1699,7 +1701,7 @@ export default function App() {
                         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
                         whileHover={{ scale: 1.05, rotate: Math.random() * 10 - 5, y: -5, transition: { duration: 0.2 } }}
                         style={{ 
-                          color: '#ffffff',
+                          color: localTheme === 'light' ? '#202124' : '#ffffff',
                           textShadow: text3D,
                           WebkitTextStroke: `1px ${s.top}`,
                           marginInline: char === ' ' ? '1rem' : '0.1rem'
