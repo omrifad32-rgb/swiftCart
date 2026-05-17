@@ -74,7 +74,8 @@ import {
   Link,
   Edit,
   Images,
-  Globe
+  Globe,
+  ChevronsDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, CartItem, Order, Review, AppSettings, ContactMessage, ProductVariant, ChatMessage, ChatSession, Coupon } from './types';
@@ -1672,11 +1673,44 @@ export default function App() {
               animate={{ opacity: 1 }}
               className="py-6 pb-40 md:pb-12 space-y-12"
             >
-              <div className="text-center pb-8 border-b border-white/10 max-w-4xl mx-auto">
-                <h1 translate="no" className="font-display text-5xl md:text-7xl font-black mb-4 tracking-wider">
-                  {settings.title}
+              <div className="text-center pb-8 border-b border-white/10 max-w-4xl mx-auto pt-6 relative inline-block w-full">
+                <h1 translate="no" className="font-paint text-7xl md:text-[8rem] mb-4 tracking-wider px-2 flex justify-center flex-wrap relative z-10 leading-tight" dir="auto">
+                  {settings.title.split('').map((char, i) => {
+                    const palette = [
+                      { top: '#FFFFFF', side: '#CBD5E1', glow: 'rgba(255,255,255,0.6)' }
+                    ];
+                    const s = palette[i % palette.length];
+                    const text3D = `
+                      1px 1px 0px ${s.side},
+                      2px 2px 0px ${s.side},
+                      3px 3px 0px ${s.side},
+                      4px 4px 0px ${s.side},
+                      5px 5px 0px ${s.side},
+                      6px 6px 0px ${s.side},
+                      7px 7px 10px rgba(0,0,0,0.8),
+                      0px 0px 20px ${s.glow}
+                    `;
+                    return (
+                      <motion.span
+                        key={i}
+                        className="inline-block relative cursor-default"
+                        initial={{ y: 0, rotate: i % 2 === 0 ? -2 : 2 }}
+                        animate={{ y: [-2, 2, -2] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
+                        whileHover={{ scale: 1.05, rotate: Math.random() * 10 - 5, y: -5, transition: { duration: 0.2 } }}
+                        style={{ 
+                          color: '#ffffff',
+                          textShadow: text3D,
+                          WebkitTextStroke: `1px ${s.top}`,
+                          marginInline: char === ' ' ? '1rem' : '0.1rem'
+                        }}
+                      >
+                        {char === ' ' ? '\u00A0' : char}
+                      </motion.span>
+                    );
+                  })}
                 </h1>
-                <p className="text-xl md:text-2xl text-pri font-bold tracking-widest uppercase">{settings.sub}</p>
+                <p className="text-xl md:text-2xl text-pri font-bold tracking-widest uppercase opacity-80 mt-8 relative z-10">{settings.sub}</p>
               </div>
 
               <div className="flex justify-center">
