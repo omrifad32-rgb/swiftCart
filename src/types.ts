@@ -114,6 +114,7 @@ export interface AppSettings {
   specialDayName?: string;
   specialDayDescription?: string;
   globalDiscountPercent?: number;
+  specialDayColor?: string;
   bitLink?: string;
   paypalLink?: string;
   payboxLink?: string;

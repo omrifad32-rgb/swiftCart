@@ -1366,12 +1366,6 @@ export default function App() {
         <ShieldAlert className="w-40 h-40 text-red-500 mb-8 drop-shadow-[0_0_50px_rgba(239,68,68,0.8)]" />
         <h1 className="font-display text-4xl text-red-500 mb-4 tracking-widest leading-tight">חשבונך נחסם</h1>
         <p className="text-gray-300 text-xl font-bold leading-relaxed mb-8">אינך יכול לגשת לאתר זה יותר עקב הפרת תנאי השימוש.</p>
-        <button 
-          className="btn-main font-bold mt-4 px-8 py-3 w-auto m-auto max-w-[200px]" 
-          onClick={handleLogout}
-        >
-          התנתק מהמערכת
-        </button>
       </div>
     );
   }
@@ -1539,17 +1533,23 @@ export default function App() {
             animate={{ height: 'auto', opacity: 1 }}
             className="mb-8"
           >
-            <div className="bg-linear-to-r from-gold via-acc to-gold p-4 rounded-3xl text-center shadow-[0_0_30px_rgba(252,238,10,0.4)] animate-pulse relative overflow-hidden">
+            <div 
+              className="p-4 rounded-3xl text-center animate-pulse relative overflow-hidden"
+              style={{
+                backgroundColor: settings.specialDayColor || '#FCEE0A',
+                boxShadow: `0 0 30px ${settings.specialDayColor || '#FCEE0A'}66`
+              }}
+            >
               <div className="flex flex-col items-center justify-center gap-2 relative z-10">
                 <div className="flex items-center justify-center gap-6">
-                  <Flame className="w-8 h-8 text-white hidden md:block" />
-                  <h2 className="text-xl md:text-3xl font-display font-black text-white uppercase tracking-tighter">
+                  <Flame className="w-8 h-8 text-black hidden md:block" />
+                  <h2 className="text-xl md:text-3xl font-display font-black text-black uppercase tracking-tighter">
                     {settings.specialDayName} 🔥 {settings.globalDiscountPercent}% הנחה!
                   </h2>
-                  <Flame className="w-8 h-8 text-white hidden md:block" />
+                  <Flame className="w-8 h-8 text-black hidden md:block" />
                 </div>
                 {settings.specialDayDescription && (
-                  <p className="text-white text-lg font-bold">{settings.specialDayDescription}</p>
+                  <p className="text-black text-lg font-bold">{settings.specialDayDescription}</p>
                 )}
               </div>
             </div>
@@ -3237,17 +3237,29 @@ export default function App() {
                           onChange={(e) => setSettings({...settings, specialDayDescription: e.target.value})}
                         />
                       </div>
+                      <div>
+                        <label className="text-gray-500 font-bold block mb-3 text-right">צבע האירוע (הרקע של הבאנר):</label>
+                        <div className="flex gap-4">
+                          <input 
+                            type="color"
+                            className="w-16 h-16 bg-transparent cursor-pointer rounded-xl"
+                            value={settings.specialDayColor || '#FCEE0A'}
+                            onChange={(e) => setSettings({...settings, specialDayColor: e.target.value})}
+                          />
+                          <p className="text-gray-400 text-sm self-center">ברירת המחדל היא צהוב. בחרו צבע כדי לשנות את תצוגת אירוע ההנחות גם בעמוד הבית וגם במסך מוצר יחיד.</p>
+                        </div>
+                      </div>
                     </div>
                     <button 
                       onClick={() => {
                         const nextSettings = {...settings, specialDayEnabled: !settings.specialDayEnabled};
                         setSettings(nextSettings);
-                        update(ref(db, 'settings'), { specialDayEnabled: nextSettings.specialDayEnabled });
-                        setAlertMessage('הגדרת אירוע מיוחד עודכנה נשמרה בשרת!');
+                        update(ref(db, 'settings'), nextSettings);
+                        setAlertMessage('הגדרות אירוע מיוחד נשמרו בשרת!');
                       }}
                       className={`w-full py-5 rounded-2xl font-black text-xl transition-all ${settings.specialDayEnabled ? 'bg-gold text-black' : 'bg-white/10 text-white'}`}
                     >
-                      {settings.specialDayEnabled ? 'בטל אירוע מיוחד (כעת פעיל)' : 'הפעל אירוע מיוחד'}
+                      {settings.specialDayEnabled ? 'בטל אירוע מיוחד (כעת פעיל)' : 'שמור והפעל אירוע מיוחד'}
                     </button>
                   </div>
 
@@ -3970,6 +3982,31 @@ export default function App() {
           </button>
         </div>
         
+        {settings.specialDayEnabled && (
+          <div className="px-4 md:px-12 mb-6">
+            <div 
+              className="p-4 rounded-3xl text-center animate-pulse relative overflow-hidden"
+              style={{
+                backgroundColor: settings.specialDayColor || '#FCEE0A',
+                boxShadow: `0 0 30px ${settings.specialDayColor || '#FCEE0A'}66`
+              }}
+            >
+              <div className="flex flex-col items-center justify-center gap-2 relative z-10">
+                <div className="flex items-center justify-center gap-6">
+                  <Flame className="w-8 h-8 text-black hidden md:block" />
+                  <h2 className="text-xl md:text-2xl font-display font-black text-black uppercase tracking-tighter">
+                    {settings.specialDayName} 🔥 {settings.globalDiscountPercent}% הנחה!
+                  </h2>
+                  <Flame className="w-8 h-8 text-black hidden md:block" />
+                </div>
+                {settings.specialDayDescription && (
+                  <p className="text-black text-sm font-bold">{settings.specialDayDescription}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start px-4 md:px-12 pb-12 pt-4">
           <div className="flex flex-col gap-4">
             <div className="relative group flex items-center justify-center bg-black/40 rounded-[30px] p-4 border border-white/5 min-h-[250px] md:min-h-[400px] overflow-hidden">
