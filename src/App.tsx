@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo, useRef, ChangeEvent } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set, push, update, remove, get } from 'firebase/database';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   Home, 
   Zap, 
@@ -94,6 +95,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
 
 const safeSetItem = (key: string, value: string) => {
   try {
@@ -1331,18 +1333,23 @@ export default function App() {
     remove(ref(db, `admins/${key}`));
   };
 
-  const handleUploadImage = (e: ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
+  const handleUploadImage = async (e: ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 50 * 1024 * 1024) {
          setAlertMessage('הקובץ גדול מדי. אנא העלה קובץ עד 50MB.');
          return;
       }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) callback(event.target.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const fileExt = file.name.split('.').pop() || 'file';
+        const fileRef = storageRef(storage, `uploads/${Date.now()}_${Math.random().toString(36).substr(2,9)}.${fileExt}`);
+        await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(fileRef);
+        callback(url);
+      } catch (err) {
+        console.error("Upload error:", err);
+        setAlertMessage("שגיאה בהעלאת הקובץ לשרת, ייתכן שאין הרשאת Storage תקפה.");
+      }
     }
   };
 
