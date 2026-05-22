@@ -1334,8 +1334,8 @@ export default function App() {
   const handleUploadImage = (e: ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-         setAlertMessage('הקובץ גדול מדי. אנא העלה קובץ עד 10MB.');
+      if (file.size > 50 * 1024 * 1024) {
+         setAlertMessage('הקובץ גדול מדי. אנא העלה קובץ עד 50MB.');
          return;
       }
       const reader = new FileReader();
@@ -5179,7 +5179,7 @@ export default function App() {
                         </label>
                       )}
                     </div>
-                    {[0,1,2,3].map(i => (
+                    {Array.from({ length: Math.max(4, (newProdData.extraImages?.length || 0) + 1) }, (_, i) => i).map(i => (
                       <div key={i} className="relative group w-32 h-32 flex-shrink-0 bg-black/40 rounded-3xl border border-white/10 flex flex-col items-center justify-center p-2 hover:border-white/20 transition-all">
                         {newProdData.extraImages?.[i] ? (
                           <>
@@ -5842,7 +5842,7 @@ export default function App() {
                         </label>
                       )}
                     </div>
-                    {[0,1,2,3].map(i => (
+                    {Array.from({ length: Math.max(4, (editProdData.extraImages?.length || 0) + 1) }, (_, i) => i).map(i => (
                       <div key={i} className="relative group w-32 h-32 flex-shrink-0 bg-black/40 rounded-3xl border border-white/10 flex flex-col items-center justify-center p-2 hover:border-white/20 transition-all">
                         {editProdData.extraImages?.[i] ? (
                           <>
