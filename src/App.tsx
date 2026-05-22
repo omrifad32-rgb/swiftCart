@@ -103,6 +103,12 @@ const safeSetItem = (key: string, value: string) => {
   }
 };
 
+const isVideoUrl = (url: string | undefined | null) => {
+  if (!url) return false;
+  if (url.startsWith('data:video/')) return true;
+  return /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(url);
+};
+
 export default function App() {
   const [activePage, setActivePage] = useState<'catalog' | 'cart' | 'orders' | 'reviews' | 'admin' | 'support' | 'home' | string>('home');
   const [products, setProducts] = useState<Product[]>([]);
@@ -1328,6 +1334,10 @@ export default function App() {
   const handleUploadImage = (e: ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+         setAlertMessage('הקובץ גדול מדי. אנא העלה קובץ עד 10MB.');
+         return;
+      }
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) callback(event.target.result as string);
@@ -1611,7 +1621,7 @@ export default function App() {
                           <div className="flex gap-2 items-end shrink-0 relative mt-auto border-t border-white/10 pt-4">
                              <label className="cursor-pointer bg-black/40 hover:bg-black/60 p-4 rounded-2xl border border-white/10 transition-all text-gray-400 hover:text-white shrink-0">
                                <ImageIcon className="w-6 h-6" />
-                               <input type="file" className="hidden" accept="image/*" onChange={(e) => handleUploadImage(e, (url) => {
+                               <input type="file" className="hidden" accept="image/*,video/*" onChange={(e) => handleUploadImage(e, (url) => {
                                    const msgId = Date.now().toString();
                                    const newMsg: ChatMessage = { id: msgId, sender: 'user', text: '', img: url, timestamp: Date.now() };
                                    const chatRef = ref(db, `chats/${user.replace(/\./g, ',')}`);
@@ -1961,12 +1971,20 @@ export default function App() {
                     )}
                     
                     <div className="img-container aspect-square p-4 md:p-8 flex items-center justify-center bg-radial from-white/5 to-transparent rounded-t-[30px] overflow-hidden">
-                      <motion.img 
-                        src={p.img} 
-                        alt={p.name} 
-                        className="max-w-full max-h-full object-contain filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-all duration-700" 
-                        referrerPolicy="no-referrer" 
-                      />
+                      {isVideoUrl(p.img) ? (
+                        <motion.video 
+                          src={p.img} 
+                          className="max-w-full max-h-full object-contain filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-all duration-700"
+                          autoPlay muted loop playsInline
+                        />
+                      ) : (
+                        <motion.img 
+                          src={p.img} 
+                          alt={p.name} 
+                          className="max-w-full max-h-full object-contain filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-all duration-700" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      )}
                     </div>
                     
                     <div className="p-4 md:p-6 text-right flex-grow flex flex-col relative z-20">
@@ -2034,7 +2052,11 @@ export default function App() {
                     return (
                       <div key={cartId} className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 bg-glass p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
                         <div className="w-20 h-20 sm:w-24 sm:h-24 bg-black/40 rounded-2xl p-3 sm:p-4 flex items-center justify-center border border-white/5">
-                          <img src={displayImg} alt={item.name} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                          {isVideoUrl(displayImg) ? (
+                            <video src={displayImg} className="max-w-full max-h-full object-contain" autoPlay muted loop playsInline />
+                          ) : (
+                            <img src={displayImg} alt={item.name} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                          )}
                         </div>
                         <div className="flex-grow text-center sm:text-right">
                           <div className="font-bold text-lg sm:text-xl mb-1 line-clamp-1">{item.name}</div>
@@ -2490,7 +2512,7 @@ export default function App() {
                         <label className="flex-grow bg-black/60 border-2 border-dashed border-white/10 rounded-3xl py-4 px-6 cursor-pointer hover:border-pri transition-all text-center">
                           <input 
                             type="file" 
-                            accept="image/*" 
+                            accept="image/*,video/*" 
                             className="hidden" 
                             onChange={(e) => {
                               const file = e.target.files?.[0];
@@ -2922,7 +2944,7 @@ export default function App() {
                                 <div className="flex gap-4 items-end max-w-5xl mx-auto">
                                   <label className="cursor-pointer bg-white/5 hover:bg-pri hover:text-black p-5 rounded-3xl border border-white/10 transition-all text-gray-400 shrink-0 shadow-lg">
                                     <ImageIcon className="w-8 h-8" />
-                                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleUploadImage(e, (url) => {
+                                    <input type="file" className="hidden" accept="image/*,video/*" onChange={(e) => handleUploadImage(e, (url) => {
                                         const msgId = Date.now().toString();
                                         const newMsg: ChatMessage = { id: msgId, sender: 'admin', text: '', img: url, timestamp: Date.now() };
                                         const chatRef = ref(db, `chats/${selectedChatUser}`);
@@ -3049,7 +3071,7 @@ export default function App() {
                           <div className="flex gap-2 w-full">
                             <label className="cursor-pointer bg-pri text-black px-4 py-3 rounded-xl flex items-center justify-center shrink-0 hover:bg-pri/80 transition-colors" title="העלה תמונת קטגוריה">
                               <ImageIcon className="w-5 h-5" />
-                              <input type="file" className="hidden" accept="image/*" onChange={(e) => handleUploadImage(e, (url) => {
+                              <input type="file" className="hidden" accept="image/*,video/*" onChange={(e) => handleUploadImage(e, (url) => {
                                 const updated = { ...(settings.categoryImages || {}) };
                                 updated[cat] = url;
                                 setSettings({...settings, categoryImages: updated});
@@ -3330,7 +3352,7 @@ export default function App() {
                             <label className="cursor-pointer flex flex-col items-center w-full h-full justify-center">
                               <ImageIcon className="w-8 h-8 text-gray-600 mb-1" />
                               <span className="text-[10px] font-bold uppercase">תמונה {i+1}</span>
-                              <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
+                              <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                                 const list = [...(settings.aboutImages || [])];
                                 list[i] = url;
                                 setSettings({...settings, aboutImages: list});
@@ -3372,7 +3394,11 @@ export default function App() {
                     <div key={p.id} className="bg-black/60 p-6 rounded-[30px] border border-white/5 space-y-6">
                       <div className="flex justify-between items-center border-b border-white/5 pb-4">
                         <div className="flex items-center gap-4">
-                          <img src={p.img} className="w-16 h-16 rounded-xl object-contain bg-black" />
+                          {isVideoUrl(p.img) ? (
+                            <video src={p.img} className="w-16 h-16 rounded-xl object-contain bg-black" muted autoPlay loop playsInline />
+                          ) : (
+                            <img src={p.img} className="w-16 h-16 rounded-xl object-contain bg-black" referrerPolicy="no-referrer" />
+                          )}
                           <b className="text-2xl">{p.name}</b>
                         </div>
                         <div className="flex gap-2">
@@ -3449,7 +3475,7 @@ export default function App() {
                         </button>
                         <label className="bg-pri/10 text-pri border border-pri/20 px-6 py-4 rounded-2xl font-bold cursor-pointer hover:bg-pri/20 transition-colors text-center whitespace-nowrap">
                           החלף תמונה
-                          <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => handleUpdateProduct(p.id, { img: url }))} />
+                          <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => handleUpdateProduct(p.id, { img: url }))} />
                         </label>
                       </div>
                     </div>
@@ -3635,7 +3661,11 @@ export default function App() {
                     {trashedProducts.length === 0 ? <p className="text-gray-500 text-sm">אין מוצרים במחזור</p> : trashedProducts.map(p => (
                       <div key={p.id} className="flex items-center justify-between bg-black/40 p-4 rounded-xl border border-white/5">
                         <div className="flex items-center gap-4">
-                           {p.img && <img src={p.img} className="w-10 h-10 rounded-md object-cover" />}
+                           {p.img && isVideoUrl(p.img) ? (
+                             <video src={p.img} className="w-10 h-10 rounded-md object-cover" muted autoPlay loop playsInline />
+                           ) : p.img ? (
+                             <img src={p.img} className="w-10 h-10 rounded-md object-cover" />
+                           ) : null}
                            <span className="text-white font-bold">{p.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -4090,9 +4120,7 @@ export default function App() {
                 <label className="absolute top-4 left-4 bg-pri text-black p-3 rounded-full hover:bg-white transition-all cursor-pointer shadow-xl z-20 group-hover:scale-110" title="החלף תמונה זו">
                   <ImageIcon className="w-6 h-6" />
                   <input 
-                    type="file" 
-                    className="hidden" 
-                    onChange={(e) => handleUploadImage(e, (url) => {
+                    type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                        const hasVariantImg = !!(selectedVariant?.img && ![selectedProduct.img, ...(selectedProduct.extraImages || [])].includes(selectedVariant.img));
                        if (hasVariantImg && editingImgIdx === 0) {
                            // Replacing variant image
@@ -4127,15 +4155,27 @@ export default function App() {
                 </label>
               )}
               <AnimatePresence mode="wait">
-                <motion.img 
-                  key={editingImgIdx + (selectedVariant?.img || '')}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.1 }}
-                  src={currentDisplayImg} 
-                  className="w-full h-full max-h-[300px] md:max-h-[400px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" 
-                  referrerPolicy="no-referrer" 
-                />
+                {isVideoUrl(currentDisplayImg) ? (
+                  <motion.video 
+                    key={editingImgIdx + (selectedVariant?.img || '')}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.1 }}
+                    src={currentDisplayImg} 
+                    className="w-full h-full max-h-[300px] md:max-h-[400px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+                    autoPlay muted loop playsInline controls
+                  />
+                ) : (
+                  <motion.img 
+                    key={editingImgIdx + (selectedVariant?.img || '')}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.1 }}
+                    src={currentDisplayImg} 
+                    className="w-full h-full max-h-[300px] md:max-h-[400px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]" 
+                    referrerPolicy="no-referrer" 
+                  />
+                )}
               </AnimatePresence>
               
               {(productImages.length > 1 || isAdmin) && (
@@ -4168,7 +4208,11 @@ export default function App() {
                        onClick={() => setEditingImgIdx(i)}
                        className={`w-16 h-16 rounded-xl border-2 transition-all overflow-hidden bg-black/40 flex-shrink-0 ${editingImgIdx === i ? 'border-pri scale-110 shadow-[0_0_15px_rgba(0,240,255,0.3)]' : 'border-white/10 opacity-50 hover:opacity-100'}`}
                      >
-                       <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                       {isVideoUrl(url) ? (
+                         <video src={url} className="w-full h-full object-cover" muted autoPlay loop playsInline />
+                       ) : (
+                         <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                       )}
                      </button>
                      {isAdmin && i !== 0 && (
                        <button 
@@ -4196,9 +4240,7 @@ export default function App() {
                    <label className="w-16 h-16 rounded-xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center cursor-pointer hover:border-pri hover:text-pri text-white/50 transition-all flex-shrink-0">
                      <Plus className="w-6 h-6" />
                      <input 
-                       type="file" 
-                       className="hidden" 
-                       onChange={(e) => handleUploadImage(e, (url) => {
+                       type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                           const extras = [...(selectedProduct.extraImages || []), url];
                           const pTemp = { ...selectedProduct, extraImages: extras };
                           handleUpdateProduct(pTemp.id, { extraImages: extras });
@@ -4367,7 +4409,13 @@ export default function App() {
                                    className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border-2 transition-all ${isSelected ? 'border-pri bg-pri/10 scale-105' : 'border-white/10 bg-black/40 hover:border-white/30'}`}
                                    onClick={() => setSelectedCustomOptions({...selectedCustomOptions, [opt.title]: choiceName})}
                                  >
-                                   {choiceImg && <img src={choiceImg} className="w-12 h-12 object-cover rounded-xl" />}
+                                   {choiceImg && (
+                                    isVideoUrl(choiceImg) ? (
+                                      <video src={choiceImg} className="w-12 h-12 object-cover rounded-xl" muted autoPlay loop playsInline />
+                                    ) : (
+                                      <img src={choiceImg} className="w-12 h-12 object-cover rounded-xl" />
+                                    )
+                                  )}
                                    <span className={`text-sm font-bold ${isSelected ? 'text-pri' : 'text-gray-300'}`}>{choiceName}</span>
                                  </button>
                                );
@@ -4662,7 +4710,11 @@ export default function App() {
                       return (
                         <div key={cartId} className="flex justify-between items-center text-sm">
                           <div className="flex items-center gap-3">
-                            <img src={displayImg} className="w-10 h-10 object-cover rounded-lg border border-white/10" referrerPolicy="no-referrer" />
+                            {isVideoUrl(displayImg) ? (
+                              <video src={displayImg} className="w-10 h-10 object-cover rounded-lg border border-white/10" muted autoPlay loop playsInline />
+                            ) : (
+                              <img src={displayImg} className="w-10 h-10 object-cover rounded-lg border border-white/10" referrerPolicy="no-referrer" />
+                            )}
                             <div className="flex flex-col">
                               <span className="text-white font-bold">{item.name} <span className="text-gray-500 font-normal">x{item.qty}</span></span>
                               {item.selectedVariant && <span className="text-pri text-[10px] font-black">{item.selectedVariant.name}</span>}
@@ -5107,7 +5159,11 @@ export default function App() {
                     <div className="relative group w-32 h-32 flex-shrink-0 bg-black/40 rounded-3xl border border-white/10 flex flex-col items-center justify-center p-2 hover:border-pri/40 transition-all">
                       {newProdData.img ? (
                         <>
-                          <img src={newProdData.img} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                          {isVideoUrl(newProdData.img) ? (
+                            <video src={newProdData.img} className="w-full h-full object-contain" muted autoPlay loop playsInline />
+                          ) : (
+                            <img src={newProdData.img} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                          )}
                           <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
                             setConfirmAction({
                               message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
@@ -5119,7 +5175,7 @@ export default function App() {
                         <label className="cursor-pointer flex flex-col items-center w-full h-full justify-center">
                           <Plus className="w-8 h-8 text-pri mb-1" />
                           <span className="text-[10px] font-bold uppercase">ראשי</span>
-                          <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => setNewProdData({...newProdData, img: url}))} />
+                          <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => setNewProdData({...newProdData, img: url}))} />
                         </label>
                       )}
                     </div>
@@ -5127,7 +5183,11 @@ export default function App() {
                       <div key={i} className="relative group w-32 h-32 flex-shrink-0 bg-black/40 rounded-3xl border border-white/10 flex flex-col items-center justify-center p-2 hover:border-white/20 transition-all">
                         {newProdData.extraImages?.[i] ? (
                           <>
-                            <img src={newProdData.extraImages[i]} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                            {isVideoUrl(newProdData.extraImages[i]) ? (
+                              <video src={newProdData.extraImages[i]} className="w-full h-full object-contain" muted autoPlay loop playsInline />
+                            ) : (
+                              <img src={newProdData.extraImages[i]} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                            )}
                             <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
                               setConfirmAction({
                                 message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
@@ -5143,7 +5203,7 @@ export default function App() {
                           <label className="cursor-pointer flex flex-col items-center w-full h-full justify-center">
                             <ImageIcon className="w-8 h-8 text-gray-600 mb-1" />
                             <span className="text-[10px] font-bold uppercase">נוספת {i+1}</span>
-                            <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
+                            <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                               const list = [...(newProdData.extraImages || [])];
                               list[i] = url;
                               setNewProdData({...newProdData, extraImages: list});
@@ -5219,9 +5279,9 @@ export default function App() {
                              <div className="shrink-0 flex items-center gap-1">
                                <label className="cursor-pointer relative block" title="העלה תמונה למכשיר">
                                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
-                                   {v.img ? <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-4 h-4 text-gray-400" />}
+                                   {v.img ? (isVideoUrl(v.img) ? <video src={v.img} className="w-full h-full object-cover" muted autoPlay loop playsInline /> : <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />) : <ImageIcon className="w-4 h-4 text-gray-400" />}
                                  </div>
-                                 <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
+                                 <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
                                </label>
                                <button 
                                  type="button"
@@ -5331,7 +5391,7 @@ export default function App() {
                               const choiceImg = c.img;
                               return (
                                 <div key={j} className="flex items-center gap-2 bg-black/40 border border-white/10 p-2 rounded-lg">
-                                  {choiceImg && <img src={choiceImg} className="w-6 h-6 object-cover rounded-md" referrerPolicy="no-referrer" />}
+                                  {choiceImg && (isVideoUrl(choiceImg) ? <video src={choiceImg} className="w-6 h-6 object-cover rounded-md" muted autoPlay loop playsInline /> : <img src={choiceImg} className="w-6 h-6 object-cover rounded-md" referrerPolicy="no-referrer" />)}
                                   <input 
                                     className="bg-transparent text-xs text-white outline-none w-20 px-1"
                                     value={choiceName}
@@ -5347,7 +5407,7 @@ export default function App() {
                                   />
                                   <label className="cursor-pointer text-gray-400 hover:text-white" title="העלה תמונה">
                                     <ImageIcon className="w-4 h-4" />
-                                    <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
+                                    <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                                        const list = [...(newProdData.customOptions || [])];
                                        const oldChoices = [...list[i].choices];
                                        const oldChoice = oldChoices[j];
@@ -5533,9 +5593,9 @@ export default function App() {
                              <div className="shrink-0 flex items-center gap-1">
                                <label className="cursor-pointer relative block" title="העלה תמונה למכשיר">
                                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
-                                   {v.img ? <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-4 h-4 text-gray-400" />}
+                                   {v.img ? (isVideoUrl(v.img) ? <video src={v.img} className="w-full h-full object-cover" muted autoPlay loop playsInline /> : <img src={v.img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />) : <ImageIcon className="w-4 h-4 text-gray-400" />}
                                  </div>
-                                 <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
+                                 <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => updateVariant('img', url))} />
                                </label>
                                <button 
                                  type="button"
@@ -5645,7 +5705,7 @@ export default function App() {
                               const choiceImg = c.img;
                               return (
                                 <div key={j} className="flex items-center gap-2 bg-black/40 border border-white/10 p-2 rounded-lg">
-                                  {choiceImg && <img src={choiceImg} className="w-6 h-6 object-cover rounded-md" referrerPolicy="no-referrer" />}
+                                  {choiceImg && (isVideoUrl(choiceImg) ? <video src={choiceImg} className="w-6 h-6 object-cover rounded-md" muted autoPlay loop playsInline /> : <img src={choiceImg} className="w-6 h-6 object-cover rounded-md" referrerPolicy="no-referrer" />)}
                                   <input 
                                     className="bg-transparent text-xs text-white outline-none w-20 px-1"
                                     value={choiceName}
@@ -5661,7 +5721,7 @@ export default function App() {
                                   />
                                   <label className="cursor-pointer text-gray-400 hover:text-white" title="העלה תמונה">
                                     <ImageIcon className="w-4 h-4" />
-                                    <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
+                                    <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                                        const list = [...(editProdData.customOptions || [])];
                                        const oldChoices = [...list[i].choices];
                                        const oldChoice = oldChoices[j];
@@ -5762,7 +5822,11 @@ export default function App() {
                     <div className="relative group w-32 h-32 flex-shrink-0 bg-black/40 rounded-3xl border border-white/10 flex flex-col items-center justify-center p-2 hover:border-pri/40 transition-all">
                       {editProdData.img ? (
                         <>
-                          <img src={editProdData.img} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                          {isVideoUrl(editProdData.img) ? (
+                            <video src={editProdData.img} className="w-full h-full object-contain" muted autoPlay loop playsInline />
+                          ) : (
+                            <img src={editProdData.img} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                          )}
                           <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
                             setConfirmAction({
                               message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
@@ -5774,7 +5838,7 @@ export default function App() {
                         <label className="cursor-pointer flex flex-col items-center w-full h-full justify-center text-center">
                           <Plus className="w-8 h-8 text-pri mb-1" />
                           <span className="text-[8px] font-black uppercase">ראשי</span>
-                          <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => setEditProdData({...editProdData, img: url}))} />
+                          <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => setEditProdData({...editProdData, img: url}))} />
                         </label>
                       )}
                     </div>
@@ -5782,7 +5846,11 @@ export default function App() {
                       <div key={i} className="relative group w-32 h-32 flex-shrink-0 bg-black/40 rounded-3xl border border-white/10 flex flex-col items-center justify-center p-2 hover:border-white/20 transition-all">
                         {editProdData.extraImages?.[i] ? (
                           <>
-                            <img src={editProdData.extraImages[i]} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                            {isVideoUrl(editProdData.extraImages[i]) ? (
+                              <video src={editProdData.extraImages[i]} className="w-full h-full object-contain" muted autoPlay loop playsInline />
+                            ) : (
+                              <img src={editProdData.extraImages[i]} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                            )}
                             <button className="absolute -top-2 -right-2 bg-acc p-1 rounded-full shadow-lg" onClick={() => {
                               setConfirmAction({
                                 message: 'האם אתה בטוח שברצונך למחוק תמונה זו?',
@@ -5798,7 +5866,7 @@ export default function App() {
                           <label className="cursor-pointer flex flex-col items-center w-full h-full justify-center text-center">
                             <ImageIcon className="w-8 h-8 text-gray-600 mb-1" />
                             <span className="text-[8px] font-black uppercase">נוספת {i+1}</span>
-                            <input type="file" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
+                            <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleUploadImage(e, (url) => {
                               const list = [...(editProdData.extraImages || [])];
                               list[i] = url;
                               setEditProdData({...editProdData, extraImages: list});
