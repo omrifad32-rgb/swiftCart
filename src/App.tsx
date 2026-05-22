@@ -300,6 +300,7 @@ export default function App() {
   const [editingRev, setEditingRev] = useState<Review | null>(null);
   const [showCookieBanner, setShowCookieBanner] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   const [trashedProducts, setTrashedProducts] = useState<Product[]>([]);
@@ -1340,6 +1341,7 @@ export default function App() {
          setAlertMessage('הקובץ גדול מדי. אנא העלה קובץ עד 50MB.');
          return;
       }
+      setIsUploading(true);
       try {
         const fileExt = file.name.split('.').pop() || 'file';
         const fileRef = storageRef(storage, `uploads/${Date.now()}_${Math.random().toString(36).substr(2,9)}.${fileExt}`);
@@ -1348,7 +1350,11 @@ export default function App() {
         callback(url);
       } catch (err) {
         console.error("Upload error:", err);
-        setAlertMessage("שגיאה בהעלאת הקובץ לשרת, ייתכן שאין הרשאת Storage תקפה.");
+        setAlertMessage("שגיאה בהעלאת הקובץ לשרת, ייתכן שאין הרשאת Storage תקפה (או שהרשת חסומה).");
+      } finally {
+        setIsUploading(false);
+        // Clear input so same file can be selected again
+        e.target.value = '';
       }
     }
   };
@@ -5948,6 +5954,13 @@ export default function App() {
               </div>
             </div>
           </motion.div>
+        )}
+
+        {isUploading && (
+          <div className="fixed inset-0 z-[9999999] flex flex-col items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="w-16 h-16 border-4 border-white/10 border-t-pri rounded-full animate-spin mb-4" />
+            <h3 className="text-xl font-bold text-white whitespace-pre-wrap">מעלה קובץ לשרת, אנא המתן... (עשוי לקחת מספר שניות)</h3>
+          </div>
         )}
 
         {alertMessage && (
