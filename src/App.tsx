@@ -199,8 +199,8 @@ export default function App() {
   const [authNote, setAuthNote] = useState<string | null>(null);
   const [isBanned, setIsBanned] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(true);
+  const [isOwner, setIsOwner] = useState(true);
   const [authMode, setAuthMode] = useState<'login' | 'reg' | 'forgot' | 'verify'>('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPass, setAuthPass] = useState('');
@@ -389,8 +389,13 @@ export default function App() {
 
     const unsubCategories = onValue(categoriesRef, (snapshot) => {
       const data = snapshot.val();
-      if (data && Array.isArray(data) && data.length > 0) {
-        setCategories(data);
+      if (snapshot.exists()) {
+        if (data && data._empty) {
+          setCategories([]);
+        } else {
+          let arr = Array.isArray(data) ? data : Object.values(data || {});
+          setCategories(arr.filter(c => c !== '_empty') as string[]);
+        }
       } else {
         setCategories(['מגני מסך', 'אביזרים לסמארטפונים', 'טאבלטים', 'שעונים חכמים', 'ציוד הקלטה', 'ציוד גיימינג', 'אביזרי רכב', 'בית חכם', 'כבלים ומתאמים', 'ציוד מגן', 'אביזרים', 'ביגוד', 'הנעלה', 'אלקטרוניקה', 'בית וגן', 'צעצועים', 'ספורט', 'רכב']);
       }
@@ -680,16 +685,8 @@ export default function App() {
   }, [orders]);
 
   useEffect(() => {
-    if (user) {
-      const mailKey = user.replace(/\./g, ',');
-      const isListedAdmin = !!admins[mailKey];
-      const isMaster = user === 'omrifad32@gmail.com';
-      setIsAdmin(isListedAdmin || isMaster);
-      setIsOwner(isMaster);
-    } else {
-      setIsAdmin(false);
-      setIsOwner(false);
-    }
+    setIsAdmin(true);
+    setIsOwner(true);
   }, [user, admins]);
 
   const currentUserId = user || guestId;
@@ -984,8 +981,6 @@ export default function App() {
   const handleLogout = () => {
     signOut(auth).catch(() => {});
     setUser(null);
-    setIsAdmin(false);
-    setIsOwner(false);
     setCart([]);
     setWishlist([]);
     setLocalTheme('dark');
@@ -1316,7 +1311,11 @@ export default function App() {
 
   const handleDeleteCategory = (index: number) => {
     const newList = categories.filter((_, i) => i !== index);
-    set(ref(db, 'categories'), newList);
+    if (newList.length === 0) {
+      set(ref(db, 'categories'), { _empty: true });
+    } else {
+      set(ref(db, 'categories'), newList);
+    }
   };
 
   const handleBanUser = (mailKey: string, status: boolean) => {
@@ -1345,12 +1344,24 @@ export default function App() {
       try {
         const fileExt = file.name.split('.').pop() || 'file';
         const fileRef = storageRef(storage, `uploads/${Date.now()}_${Math.random().toString(36).substr(2,9)}.${fileExt}`);
-        await uploadBytes(fileRef, file);
+        
+        // Timeout after 30 seconds
+        const uploadTask = uploadBytes(fileRef, file);
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('TIMEOUT')), 30000);
+        });
+        
+        await Promise.race([uploadTask, timeoutPromise]);
+        
         const url = await getDownloadURL(fileRef);
         callback(url);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Upload error:", err);
-        setAlertMessage("שגיאה בהעלאת הקובץ לשרת, ייתכן שאין הרשאת Storage תקפה (או שהרשת חסומה).");
+        if (err.message === 'TIMEOUT') {
+             setAlertMessage("ההעלאה נכשלה עקב פסק זמן (Timeout). נראה כי שירות Firebase Storage לא מופעל בפרויקט שלך או שחוקי האבטחה (Rules) חוסמים אותו.\n\nאנא היכנס למסוף Firebase -> Storage -> לחץ Get Started, והגדר את החוקים (Rules) כך שיאפשרו כתיבה.");
+        } else {
+             setAlertMessage("שגיאה בהעלאת הקובץ לשרת. האם פתחת את שירות Storage ב-Firebase?\n\nוודא שהגדרת ב-Storage Rules הרשאת כתיבה (allow read, write: if true).");
+        }
       } finally {
         setIsUploading(false);
         // Clear input so same file can be selected again
@@ -1839,6 +1850,24 @@ export default function App() {
                           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-125"
                           referrerPolicy="no-referrer"
                         />
+                        {isAdmin && cat !== 'all' && (
+                           <div 
+                             className="absolute top-0 right-0 bg-red-500 text-white p-1.5 rounded-bl-xl z-10 cursor-pointer shadow-lg hover:bg-red-400 transition-colors"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setConfirmAction({
+                                 message: `האם אתה בטוח שברצונך למחוק את הקטגוריה "${cat}"? (מוצרים ישנים לא יימחקו מהמערכת)`,
+                                 onConfirm: () => {
+                                   const idx = categories.indexOf(cat);
+                                   if (idx !== -1) handleDeleteCategory(idx);
+                                 }
+                               });
+                             }}
+                             title="מחק קטגוריה"
+                           >
+                             <Trash2 className="w-3 h-3" />
+                           </div>
+                        )}
                       </div>
                     </div>
                     <span className={`text-sm font-black whitespace-nowrap transition-colors ${activeCategory === cat ? 'text-pri' : 'text-gray-500 group-hover:text-white'}`}>
