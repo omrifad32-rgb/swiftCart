@@ -199,8 +199,8 @@ export default function App() {
   const [authNote, setAuthNote] = useState<string | null>(null);
   const [isBanned, setIsBanned] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [isAdmin, setIsAdmin] = useState(true);
-  const [isOwner, setIsOwner] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'reg' | 'forgot' | 'verify'>('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPass, setAuthPass] = useState('');
@@ -685,8 +685,16 @@ export default function App() {
   }, [orders]);
 
   useEffect(() => {
-    setIsAdmin(true);
-    setIsOwner(true);
+    if (user) {
+      const mailKey = user.replace(/\./g, ',');
+      const isListedAdmin = !!admins[mailKey];
+      const isMaster = user === 'omrifad32@gmail.com';
+      setIsAdmin(isListedAdmin || isMaster);
+      setIsOwner(isMaster);
+    } else {
+      setIsAdmin(false);
+      setIsOwner(false);
+    }
   }, [user, admins]);
 
   const currentUserId = user || guestId;
@@ -981,6 +989,8 @@ export default function App() {
   const handleLogout = () => {
     signOut(auth).catch(() => {});
     setUser(null);
+    setIsAdmin(false);
+    setIsOwner(false);
     setCart([]);
     setWishlist([]);
     setLocalTheme('dark');
