@@ -74,6 +74,10 @@
     animation: none;
   }
 
+  .bg-glass {
+    @apply bg-black/40 backdrop-blur-xl;
+  }
+
   body.light-theme .glass-header {
     @apply bg-white/80 border-[#dadce0] text-[#202124] shadow-sm backdrop-blur-2xl;
   }
@@ -177,7 +181,22 @@
   }
 
   .btn-main {
-    @apply bg-linear-to-r from-pri to-[#0066ff] text-black font-black py-4 px-8 rounded-2xl shadow-[0_10px_30px_rgba(0,240,255,0.4)] transition-all active:scale-95 flex items-center justify-center gap-3 w-full cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply relative text-white font-black py-4 px-8 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-3 w-full cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden;
+    background: linear-gradient(90deg, var(--pri), #0066ff, #00bfff, var(--pri));
+    background-size: 300% auto;
+    animation: gradient-flow 3s ease infinite;
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.4);
+  }
+
+  .btn-main:hover {
+    box-shadow: 0 0 50px rgba(0, 240, 255, 0.6);
+    transform: scale(1.02);
+  }
+
+  @keyframes gradient-flow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
   }
 
   .btn-outline {
@@ -232,7 +251,10 @@
     @apply px-6 py-3 rounded-full whitespace-nowrap transition-all border border-white/10 bg-white/5 text-gray-400 font-bold;
   }
   .cat-tab.active {
-    @apply bg-pri text-black border-pri shadow-[0_0_20px_rgba(0,240,255,0.3)];
+    @apply text-white shadow-[0_0_20px_rgba(0,240,255,0.8)] outline-none border-2 border-white/50;
+    background: linear-gradient(90deg, var(--pri), #0066ff, #00bfff, var(--pri));
+    background-size: 300% auto;
+    animation: gradient-flow 3s ease infinite;
   }
 }
 

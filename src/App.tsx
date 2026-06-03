@@ -80,6 +80,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, CartItem, Order, Review, AppSettings, ContactMessage, ProductVariant, ChatMessage, ChatSession, Coupon } from './types';
+import InteractiveBackground from './InteractiveBackground';
+import SalesBox from './SalesBox';
+import Footer from './Footer';
 
 // Firebase configuration (from user's request)
 const firebaseConfig = {
@@ -1319,6 +1322,26 @@ export default function App() {
     setNewCatName('');
   };
 
+  const handleRenameCategory = (index: number, oldName: string, newName: string) => {
+    if (!newName || newName === oldName || categories.includes(newName)) return;
+    
+    const newList = [...categories];
+    newList[index] = newName;
+    set(ref(db, 'categories'), newList);
+
+    if (settings.categoryImages && settings.categoryImages[oldName]) {
+      const updatedImages = { ...settings.categoryImages };
+      updatedImages[newName] = updatedImages[oldName];
+      delete updatedImages[oldName];
+      setSettings({ ...settings, categoryImages: updatedImages });
+    }
+
+    if (products.some(p => p.category === oldName)) {
+      const updatedProducts = products.map(p => p.category === oldName ? { ...p, category: newName } : p);
+      set(ref(db, 'products'), cleanPayload(updatedProducts));
+    }
+  };
+
   const handleDeleteCategory = (index: number) => {
     const newList = categories.filter((_, i) => i !== index);
     if (newList.length === 0) {
@@ -1390,16 +1413,19 @@ export default function App() {
   if (showSplash) {
     return (
       <div className="fixed inset-0 bg-[#050508] z-[999999] flex flex-col items-center justify-center">
+        <InteractiveBackground />
         <motion.div
           animate={{ y: [10, -20, 10], scale: [0.9, 1.1, 0.9] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          <Rocket className="w-20 h-20 text-pri drop-shadow-[0_15px_30px_rgba(0,240,255,0.4)]" />
+          <Rocket className="w-20 h-20 text-pri drop-shadow-[0_15px_30px_rgba(0,240,255,0.4)] relative z-10" />
         </motion.div>
-        <div className="font-display text-5xl uppercase tracking-widest mt-8 animate-pulse" translate="no">
+        <div className="font-display text-5xl uppercase tracking-widest mt-8 animate-pulse relative z-10" translate="no">
           {settings.title}
         </div>
-        <p className="text-gray-500 font-bold tracking-widest mt-4">המערכת עולה לאוויר...</p>
+        <p className="text-gray-500 font-bold tracking-widest mt-4 relative z-10 mb-12">המערכת עולה לאוויר...</p>
+
+        <SalesBox />
       </div>
     );
   }
@@ -1432,6 +1458,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen pb-[calc(100px+env(safe-area-inset-bottom))] pt-24" dir="rtl">
+      <InteractiveBackground />
       <header className="glass-header">
         <div 
           translate="no"
@@ -1757,7 +1784,8 @@ export default function App() {
                     );
                   })}
                 </h1>
-                <p className="text-xl md:text-2xl text-pri font-bold tracking-widest uppercase opacity-80 mt-8 relative z-10">{settings.sub}</p>
+                <p className="text-xl md:text-2xl text-pri font-bold tracking-widest uppercase opacity-80 mt-8 relative z-10 mb-16">{settings.sub}</p>
+                <SalesBox />
               </div>
 
               <div className="flex justify-center">
@@ -1765,8 +1793,8 @@ export default function App() {
                   onClick={() => setActivePage('catalog')}
                   className="btn-main group flex items-center justify-center gap-4 py-8 px-12 text-3xl !rounded-full shadow-[0_0_50px_rgba(0,240,255,0.3)] hover:scale-105 transition-all duration-500"
                 >
-                  <span className="font-black tracking-tighter">היכנס לחנות עכשיו</span>
-                  <Zap className="w-8 h-8 text-black group-hover:rotate-12 transition-transform" />
+                  <span className="font-black tracking-tighter text-white">היכנס לחנות עכשיו</span>
+                  <Zap className="w-8 h-8 text-white group-hover:rotate-12 transition-transform" />
                 </button>
               </div>
 
@@ -1816,19 +1844,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="mt-24 space-y-12">
-                <div className="flex flex-col items-center gap-6 pb-12">
-                  <div className="flex items-center gap-4 bg-white/5 py-4 px-8 rounded-full border border-white/10">
-                    <Clock className="w-6 h-6 text-pri" />
-                    <span className="text-xl font-black text-gray-300">שעות פעילות: {settings.officeHours}</span>
-                  </div>
-                  <button 
-                    className="text-gray-500 font-bold hover:text-pri transition-colors text-lg"
-                    onClick={() => setShowTermsModal(true)}
-                  >
-                    קרא את תקנון ומדיניות האתר
-                  </button>
-                </div>
+              <div className="mt-24">
               </div>
             </motion.section>
           )}
@@ -1849,7 +1865,7 @@ export default function App() {
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
-                    className="flex flex-col items-center gap-3 min-w-[100px] group transition-all"
+                    className="flex flex-col items-center gap-3 min-w-[100px] shrink-0 w-auto group transition-all"
                   >
                     <div className={`w-20 h-20 rounded-full border-2 p-1 transition-all duration-500 overflow-hidden ${activeCategory === cat ? 'border-pri shadow-[0_0_20px_rgba(0,240,255,0.3)]' : 'border-white/10 grayscale group-hover:grayscale-0 group-hover:border-pri/40'}`}>
                       <div className="w-full h-full rounded-full bg-black/40 flex items-center justify-center relative overflow-hidden">
@@ -1943,7 +1959,7 @@ export default function App() {
                       <button
                         key={cat}
                         onClick={() => setActiveCategory(cat)}
-                        className={`cat-tab px-8 py-4 rounded-full text-xl ${activeCategory === cat ? 'active' : ''}`}
+                        className={`cat-tab px-8 py-4 rounded-full text-xl shrink-0 w-auto ${activeCategory === cat ? 'active' : ''}`}
                       >
                         {cat === 'all' ? 'הכל' : cat}
                       </button>
@@ -3107,7 +3123,19 @@ export default function App() {
                       {categories.map((cat, idx) => (
                         <div key={idx} className="bg-black/40 p-4 rounded-2xl border border-white/5 flex flex-col gap-4">
                           <div className="flex justify-between items-center">
-                            <label className="text-white font-bold block">{cat}:</label>
+                            <input 
+                              className="bg-transparent text-white font-bold block w-full outline-none border-b border-white/10 hover:border-pri/50 focus:border-pri transition-colors pb-1 ml-4"
+                              defaultValue={cat}
+                              title="ערוך שם קטגוריה"
+                              onBlur={(e) => {
+                                const newName = e.target.value.trim();
+                                if (newName && newName !== cat) {
+                                  handleRenameCategory(idx, cat, newName);
+                                } else {
+                                  e.target.value = cat;
+                                }
+                              }}
+                            />
                             <button 
                               onClick={() => {
                                 setConfirmAction({
@@ -3849,6 +3877,8 @@ export default function App() {
             </motion.section>
           )}
         </AnimatePresence>
+        
+        <Footer onTermsClick={() => setShowTermsModal(true)} />
       </main>
 
       <nav className="nav-bar">
