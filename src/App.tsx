@@ -81,7 +81,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, CartItem, Order, Review, AppSettings, ContactMessage, ProductVariant, ChatMessage, ChatSession, Coupon } from './types';
 import InteractiveBackground from './InteractiveBackground';
-import SalesBox from './SalesBox';
 import Footer from './Footer';
 
 // Firebase configuration (from user's request)
@@ -131,6 +130,9 @@ export default function App() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
+  const [newReviewData, setNewReviewData] = useState<Partial<Review>>({});
   const [coupons, setCoupons] = useState<Record<string, Coupon>>({});
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponInput, setCouponInput] = useState('');
@@ -162,10 +164,10 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isWishlistView, setIsWishlistView] = useState(false);
-  const [showReviewModal, setShowReviewModal] = useState(false);
   const [revText, setRevText] = useState('');
   const [revScore, setRevScore] = useState(5);
   const [revImg, setRevImg] = useState<string | null>(null);
+  const [showProductReviewForm, setShowProductReviewForm] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings>({
     title: "SwiftCart",
@@ -1130,7 +1132,7 @@ export default function App() {
     }
   };
 
-  const handlePostReview = (text: string, score: number, id?: string, img?: string) => {
+  const handlePostReview = (text: string, score: number, id?: string, img?: string, productId?: string) => {
     if (!user) {
       setAuthNote('כדי לכתוב ביקורת על מוצר, עליך להתחבר למערכת.');
       setShowAuthModal(true);
@@ -1151,7 +1153,8 @@ export default function App() {
         t: text,
         s: score,
         img: img || null,
-        time: Date.now()
+        time: Date.now(),
+        productId: productId || 'all'
       });
     }
   };
@@ -1366,6 +1369,35 @@ export default function App() {
     remove(ref(db, `admins/${key}`));
   };
 
+  const handleSaveReview = () => {
+    const isEditing = !!editingReview?.id;
+    const reviewId = isEditing ? editingReview!.id : Date.now().toString();
+    const finalReview: Review = {
+      id: reviewId,
+      u: newReviewData.u || 'אנונימי',
+      e: newReviewData.e || 'admin@admin.com',
+      t: newReviewData.t || '',
+      s: newReviewData.s || 5,
+      time: newReviewData.time || Date.now(),
+      img: newReviewData.img || '',
+      productId: newReviewData.productId || 'all',
+      featured: newReviewData.featured || false
+    };
+    
+    set(ref(db, `reviews/${reviewId}`), finalReview).then(() => {
+      setShowReviewModal(false);
+      setEditingReview(null);
+      setNewReviewData({});
+    });
+  };
+
+  const handleDeleteReview = (id?: string) => {
+    if (!id) return;
+    if (confirm('האם אתה בטוח שברצונך למחוק ביקורת זו?')) {
+      remove(ref(db, `reviews/${id}`));
+    }
+  };
+
   const handleUploadImage = async (e: ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1424,8 +1456,6 @@ export default function App() {
           {settings.title}
         </div>
         <p className="text-gray-500 font-bold tracking-widest mt-4 relative z-10 mb-12">המערכת עולה לאוויר...</p>
-
-        <SalesBox />
       </div>
     );
   }
@@ -1771,7 +1801,8 @@ export default function App() {
                         initial={{ y: 0, rotate: i % 2 === 0 ? -2 : 2 }}
                         animate={{ y: [-2, 2, -2] }}
                         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
-                        whileHover={{ scale: 1.05, rotate: Math.random() * 10 - 5, y: -5, transition: { duration: 0.2 } }}
+                        whileHover={{ scale: 1.1, rotate: Math.random() * 20 - 10, y: -10, transition: { duration: 0.1 } }}
+                        whileTap={{ scale: 1.1, rotate: Math.random() * 20 - 10, y: -10, transition: { duration: 0.1 } }}
                         style={{ 
                           color: localTheme === 'light' ? '#202124' : '#ffffff',
                           textShadow: text3D,
@@ -1784,10 +1815,28 @@ export default function App() {
                     );
                   })}
                 </h1>
-                <p className="text-xl md:text-2xl text-pri font-bold tracking-widest uppercase opacity-80 mt-8 relative z-10 mb-16">{settings.sub}</p>
-                <SalesBox />
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
+                >
+                  <motion.p 
+                    animate={{ 
+                      textShadow: [
+                        "0px 0px 8px rgba(0,240,255,0.4)",
+                        "0px 0px 15px rgba(0,240,255,0.8)",
+                        "0px 0px 8px rgba(0,240,255,0.4)"
+                      ]
+                    }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                    className="text-xl md:text-2xl text-pri font-bold tracking-widest uppercase mt-8 relative z-10 mb-16 inline-block cursor-default"
+                    whileHover={{ scale: 1.05, letterSpacing: "5px" }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {settings.sub}
+                  </motion.p>
+                </motion.div>
               </div>
-
               <div className="flex justify-center">
                 <button 
                   onClick={() => setActivePage('catalog')}
@@ -1965,12 +2014,6 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  <button 
-                    onClick={() => setShowDonationsModal(true)}
-                    className="flex-shrink-0 mr-4 text-pink-500 font-black text-sm flex items-center gap-2 hover:scale-105 transition-all bg-pink-500/10 py-2 px-4 rounded-full border border-pink-500/20 shadow-[0_0_15px_rgba(236,72,153,0.1)]"
-                  >
-                    <Heart className="w-4 h-4 fill-current" /> תרומה לאתר
-                  </button>
                 </div>
               </div>
 
@@ -2690,19 +2733,24 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="py-6"
             >
-              <div className="flex justify-between items-center mb-12">
+              <div className="flex justify-between items-center mb-12 flex-wrap gap-4">
                 <h2 className="sec-title" style={{ color: 'var(--gold)', borderColor: 'var(--gold)', margin: 0 }}>
-                  <Crown className="inline w-10 h-10 ml-4" /> ניהול הזמנות ושירות לקוחות
+                  <Crown className="inline w-10 h-10 ml-4" /> ניהול המערכת
                 </h2>
-                {isOwner && (
-                  <button 
-                    onClick={() => update(ref(db, 'settings'), { isWarMode: !settings.isWarMode })}
-                    className={`px-8 py-4 rounded-2xl font-black text-xl transition-all shadow-2xl ${settings.isWarMode ? 'bg-pri text-black' : 'bg-acc text-white'}`}
-                  >
-                    <ShieldAlert className="inline w-6 h-6 ml-2" />
-                    {settings.isWarMode ? 'פתח אתר' : 'עצירת חירום'}
-                  </button>
-                )}
+                <div className="flex items-center gap-4">
+                  <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="px-8 py-4 rounded-2xl font-black text-xl bg-purple-500 text-white transition-all shadow-2xl flex items-center hover:scale-105">
+                    <Sparkles className="w-6 h-6 ml-2" /> Google AI Studio
+                  </a>
+                  {isOwner && (
+                    <button 
+                      onClick={() => update(ref(db, 'settings'), { isWarMode: !settings.isWarMode })}
+                      className={`px-8 py-4 rounded-2xl font-black text-xl transition-all shadow-2xl flex items-center ${settings.isWarMode ? 'bg-pri text-black' : 'bg-acc text-white hover:scale-105'}`}
+                    >
+                      <ShieldAlert className="w-6 h-6 ml-2" />
+                      {settings.isWarMode ? 'פתח אתר' : 'עצירת חירום'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
@@ -3874,6 +3922,68 @@ export default function App() {
                     </table>
                   </div>
                 </div>
+
+                {/* Reviews Admin Section */}
+                <div className="bg-glass p-8 rounded-[40px] border border-white/10 mb-12 shadow-2xl">
+                  <h3 className="text-white font-display text-3xl mb-8 flex items-center gap-4">
+                    <Star className="w-8 h-8 text-pri" /> ניהול ביקורות
+                  </h3>
+                  <div className="flex justify-between items-center mb-6">
+                    <p className="text-gray-400 font-bold">הוסף, ערוך או מחק ביקורות לקוחות שיוצגו באתר.</p>
+                    <button 
+                      onClick={() => {
+                        setEditingReview(null);
+                        setNewReviewData({
+                          time: Date.now(),
+                          s: 5,
+                          featured: false
+                        });
+                        setShowReviewModal(true);
+                      }}
+                      className="btn-main !w-auto"
+                    >
+                      <Plus className="w-5 h-5 mr-2" /> ביקורת חדשה
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {reviews.map(review => (
+                      <div key={review.id} className="bg-black/40 border border-white/5 rounded-3xl p-6 relative group">
+                        <div className="absolute top-4 left-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => {
+                            setEditingReview(review);
+                            setNewReviewData(review);
+                            setShowReviewModal(true);
+                          }} className="p-2 bg-black/60 rounded-full hover:bg-pri hover:text-black transition-colors text-white">
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDeleteReview(review.id)} className="p-2 bg-black/60 rounded-full hover:bg-red-500 hover:text-white transition-colors text-white">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {review.featured && (
+                          <div className="absolute top-4 right-4 bg-gold text-black px-3 py-1 rounded-full text-xs font-black flex items-center gap-1">
+                            <Crown className="w-3 h-3" /> מומלץ
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="flex text-yellow-400">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <Star key={star} className={`w-4 h-4 ${star <= (Number(review.s) || 5) ? 'fill-current' : 'text-gray-600'}`} />
+                            ))}
+                          </div>
+                          <span className="text-gray-400 text-xs">{new Date(review.time || Date.now()).toLocaleDateString('he-IL')}</span>
+                        </div>
+                        <h4 className="text-xl font-bold text-white mb-2">{review.u}</h4>
+                        <p className="text-gray-400 text-sm mb-4 line-clamp-3">{review.t}</p>
+                        {review.img && (
+                          <img src={review.img} className="w-16 h-16 rounded-xl object-cover" alt="" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
             </motion.section>
           )}
         </AnimatePresence>
@@ -3920,65 +4030,62 @@ export default function App() {
 
       {/* Modals */}
       <AnimatePresence>
-        {/* DONATIONS MODAL */}
-        {showDonationsModal && (
-          <div className="modal show items-center p-4 z-[99]" onClick={() => setShowDonationsModal(false)}>
+        {showReviewModal && (
+          <div className="modal show items-center overflow-auto p-4 flex" onClick={() => setShowReviewModal(false)}>
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="mod-content max-w-sm w-full rounded-[40px] border-2 border-pink-500/30 p-8 shadow-[0_0_100px_rgba(236,72,153,0.1)] bg-gradient-to-b from-black/90 to-black/95 relative overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className={`relative w-full max-w-lg m-auto rounded-[35px] p-8 md:p-10 shadow-2xl ${localTheme === 'light' ? 'bg-white border border-gray-200' : 'bg-black/90 border border-white/10 backdrop-blur-3xl'}`}
+              onClick={e => e.stopPropagation()}
             >
-              <button className="close-mod transition-transform active:scale-95" onClick={() => setShowDonationsModal(false)}><X /></button>
+              <button 
+                className={`absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${localTheme === 'light' ? 'text-gray-500 hover:bg-gray-100' : 'text-gray-400 hover:bg-white/10'}`}
+                onClick={() => setShowReviewModal(false)}
+              >
+                <X className="w-5 h-5" />
+              </button>
               
-              <div className="text-center mb-8">
-                <div className="w-20 h-20 bg-pink-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-pink-500/20">
-                  <Heart className="text-pink-500 w-10 h-10 fill-current" />
+              <h2 className="text-3xl font-display font-black mb-8 text-center">{editingReview ? 'ערוך ביקורת' : 'ביקורת חדשה'}</h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold mb-2">מוצר (ID או "all")</label>
+                  <input type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-pri" value={newReviewData.productId || 'all'} onChange={e => setNewReviewData({...newReviewData, productId: e.target.value})} />
                 </div>
-                <h3 className="text-3xl font-display font-black mb-2 tracking-tight">תרומות ופרגונים</h3>
-                <div className="flex flex-col items-center gap-2">
-                  <p className="text-pink-500 font-black text-xl italic underline decoration-wavy">תרומה מכל הלב 💖</p>
-                  <p className="text-gray-500 text-sm px-4">מעריכים מאוד את הרצון לתמוך! כל תרומה עוזרת לנו להמשיך ולהשתפר.</p>
+                <div>
+                  <label className="block text-sm font-bold mb-2">שם המבקר</label>
+                  <input type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-pri" value={newReviewData.u || ''} onChange={e => setNewReviewData({...newReviewData, u: e.target.value})} />
                 </div>
-              </div>
-
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 text-center relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 blur-[50px] -mr-16 -mt-16" />
-                <div className="text-gray-500 text-xs font-black uppercase tracking-widest mb-1">
-                  סכום תרומה לבחירתכם:
+                <div>
+                  <label className="block text-sm font-bold mb-2">תוכן הביקורת</label>
+                  <textarea rows={4} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-pri" value={newReviewData.t || ''} onChange={e => setNewReviewData({...newReviewData, t: e.target.value})} />
                 </div>
-                <div className="text-white font-display text-5xl font-black">
-                  ₪??
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <button 
-                  onClick={() => {
-                    if (settings.payboxLink) window.open(settings.payboxLink, '_blank');
-                    else setAlertMessage('קישור ה-PayBox עדיין לא הוגדר על ידי המנהל.');
-                  }}
-                  className="flex items-center justify-between gap-4 p-5 rounded-3xl border-2 border-white/10 bg-pink-500/10 hover:bg-pink-500/30 hover:border-pink-500 transition-all group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="bg-pink-500 p-3 rounded-xl group-hover:rotate-12 transition-transform shadow-lg"><Heart className="w-6 h-6 text-white" /></div>
-                    <span className="text-white font-black text-lg">תרומה דרך פייבוקס</span>
+                <div className="flex items-center gap-6">
+                  <div>
+                    <label className="block text-sm font-bold mb-2">דירוג (1-5)</label>
+                    <input type="number" min="1" max="5" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-pri" value={newReviewData.s || 5} onChange={e => setNewReviewData({...newReviewData, s: Number(e.target.value)})} />
                   </div>
-                  <ChevronLeft className="w-5 h-5 text-gray-500 group-hover:translate-x-[-4px] transition-transform" />
-                </button>
-                <button 
-                  onClick={() => {
-                    if (settings.bitLink) window.open(settings.bitLink, '_blank');
-                    else setAlertMessage('קישור ה-Bit עדיין לא הוגדר על ידי המנהל.');
-                  }}
-                  className="flex items-center justify-between gap-4 p-5 rounded-3xl border-2 border-white/10 bg-pri/10 hover:bg-pri/30 hover:border-pri transition-all group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="bg-pri p-3 rounded-xl group-hover:rotate-12 transition-transform shadow-lg"><Heart className="w-6 h-6 text-white" /></div>
-                    <span className="text-white font-black text-lg">תרומה דרך ביט</span>
+                  <div className="flex-1">
+                    <label className="block text-sm font-bold mb-2">תמונה מצורפת</label>
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer bg-pri text-black px-4 py-3 rounded-xl flex items-center justify-center hover:bg-pri/80 transition-colors">
+                        <ImageIcon className="w-5 h-5" />
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleUploadImage(e, url => setNewReviewData({...newReviewData, img: url}))} />
+                      </label>
+                      <input type="text" className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-pri" placeholder="URL תמונה" value={newReviewData.img || ''} onChange={e => setNewReviewData({...newReviewData, img: e.target.value})} />
+                    </div>
                   </div>
-                  <ChevronLeft className="w-5 h-5 text-gray-500 group-hover:translate-x-[-4px] transition-transform" />
+                </div>
+                <div className="flex items-center justify-between mt-4 bg-white/5 p-4 rounded-xl">
+                  <label className="font-bold flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={!!newReviewData.featured} onChange={e => setNewReviewData({...newReviewData, featured: e.target.checked})} className="w-5 h-5 accent-pri" />
+                    מומלץ (יוצג לפני כולם)?
+                  </label>
+                </div>
+                <button onClick={handleSaveReview} className="btn-main mt-4">
+                  {editingReview ? 'שמור שינויים' : 'פרסם ביקורת'}
                 </button>
               </div>
             </motion.div>
@@ -4559,6 +4666,176 @@ export default function App() {
                           הוסף לסל <ShoppingBag className="w-8 h-8" />
                         </button>
                       </div>
+
+                      {(() => {
+                        const productReviews = reviews.filter(r => r.productId === selectedProduct.id || r.productId === 'all');
+                        // Sort so featured come first, then newest
+                        const sorted = [...productReviews].sort((a,b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || (b.time - a.time));
+                        const previewReviews = sorted.slice(0, 2);
+
+                        return (
+                          <div className="mt-12 bg-white/5 border border-white/10 rounded-[35px] p-6 md:p-8">
+                            <div className="flex justify-between items-center mb-6">
+                              <h3 className="text-xl md:text-2xl font-black flex items-center gap-2">
+                                <Star className="text-gold w-6 h-6 fill-current" /> ביקורות גולשים ({productReviews.length})
+                              </h3>
+                              <button onClick={() => {
+                                setSelectedProduct(null);
+                                setActivePage('reviews');
+                              }} className="text-pri font-bold hover:underline bg-pri/10 px-4 py-2 rounded-xl text-sm md:text-base">
+                                כל הביקורות &larr;
+                              </button>
+                            </div>
+                            
+                            {productReviews.length === 0 ? (
+                              <div className="text-center py-8">
+                                <p className="text-gray-400 font-bold mb-4">אין ביקורות למוצר זה עדיין.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                {previewReviews.map(r => (
+                                  <div key={r.id} className="bg-black/40 border border-white/5 rounded-3xl p-5 relative">
+                                    {r.featured && (
+                                      <div className="absolute top-3 left-3 bg-gold text-black px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-xl">
+                                        <Crown className="w-3 h-3" />
+                                      </div>
+                                    )}
+                                    <div className="flex gap-4">
+                                      <div className="w-10 h-10 bg-pri/20 text-pri rounded-full flex items-center justify-center font-black text-xl shrink-0">
+                                        {r.u.charAt(0)}
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <div className="font-bold text-white text-lg">{r.u}</div>
+                                          <div className="text-gray-500 text-xs">{new Date(r.time || Date.now()).toLocaleDateString('he-IL')}</div>
+                                        </div>
+                                        <div className="flex text-gold mb-2">
+                                          {[1,2,3,4,5].map(star => (
+                                            <Star key={star} className={`w-3 h-3 ${star <= (Number(r.s) || 5) ? 'fill-current' : 'text-gray-600'}`} />
+                                          ))}
+                                        </div>
+                                        <p className="text-gray-300 text-sm leading-relaxed">{r.t}</p>
+                                        {r.img && (
+                                          <div className="mt-3 relative inline-block group cursor-pointer" onClick={() => window.open(r.img, '_blank')}>
+                                            <img src={r.img} alt="" className="w-20 h-20 object-cover rounded-2xl border-2 border-white/5 group-hover:scale-105 group-hover:border-pri/50 transition-all shadow-md" />
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+                                              <Sparkles className="w-6 h-6 text-white" />
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            <div className="flex flex-col gap-3 mt-6">
+                              <button onClick={() => setShowProductReviewForm(!showProductReviewForm)} className="w-full py-4 rounded-full bg-pri/10 text-pri font-bold hover:bg-pri/20 transition-colors border border-pri/30">
+                                {showProductReviewForm ? 'סגור טופס ביקורת' : 'כתוב ביקורת על מוצר זה'}
+                              </button>
+                              
+                              <AnimatePresence>
+                                {showProductReviewForm && (
+                                  <motion.div 
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="bg-black/40 border border-white/5 rounded-3xl p-6 mt-2">
+                                      <div className="space-y-6">
+                                        <div className="flex flex-col md:flex-row gap-6">
+                                          <div className="flex-1">
+                                            <label className="text-gray-500 font-bold block mb-3 text-sm uppercase tracking-widest">דירוג המוצר</label>
+                                            <div className="flex gap-2">
+                                              {[1,2,3,4,5].map(star => (
+                                                <button 
+                                                  key={star}
+                                                  onClick={() => setRevScore(star)}
+                                                  className={`p-2 sm:p-3 rounded-2xl transition-all ${revScore >= star ? 'bg-gold/10 text-gold scale-110' : 'bg-white/5 text-gray-700'}`}
+                                                >
+                                                  <Star className={`w-6 h-6 sm:w-8 sm:h-8 ${revScore >= star ? 'fill-current' : ''}`} />
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="text-gray-500 font-bold block mb-3 text-sm uppercase tracking-widest text-right">צרף תמונה (אופציונלי)</label>
+                                          <div className="flex items-center gap-4 flex-row-reverse">
+                                            <label className="flex-grow bg-black/60 border-2 border-dashed border-white/10 rounded-3xl py-4 px-6 cursor-pointer hover:border-pri transition-all text-center">
+                                              <input 
+                                                type="file" 
+                                                accept="image/*,video/*" 
+                                                className="hidden" 
+                                                onChange={(e) => {
+                                                  const file = e.target.files?.[0];
+                                                  if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => setRevImg(reader.result as string);
+                                                    reader.readAsDataURL(file);
+                                                  }
+                                                }}
+                                              />
+                                              <div className="flex flex-col items-center gap-2 text-gray-400">
+                                                <ImageIcon className="w-6 h-6" />
+                                                <span className="text-sm font-bold">{revImg ? 'התמונה נבחרה!' : 'לחץ להעלאת תמונה'}</span>
+                                              </div>
+                                            </label>
+                                            {revImg && (
+                                              <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-pri/30 shrink-0">
+                                                <img src={revImg} className="w-full h-full object-cover" />
+                                                <button 
+                                                  onClick={() => setRevImg(null)}
+                                                  className="absolute top-1 right-1 bg-acc text-white rounded-full p-1"
+                                                >
+                                                  <X className="w-3 h-3" />
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="text-gray-500 font-bold block mb-3 text-sm uppercase tracking-widest text-right">תוכן הביקורת</label>
+                                          <textarea 
+                                            value={revText}
+                                            onChange={e => setRevText(e.target.value)}
+                                            placeholder="ספר ללקוחות אחרים על החוויה שלך עם המוצר..."
+                                            className="w-full bg-black/60 border border-white/10 rounded-3xl p-5 text-white placeholder-gray-600 focus:border-pri outline-none transition-all resize-none font-medium h-32"
+                                            dir="rtl"
+                                          />
+                                        </div>
+                                        <button 
+                                          className="w-full bg-pri text-black py-5 rounded-2xl font-black text-xl hover:bg-pri/80 transition-all flex items-center justify-center shadow-[0_10px_30px_rgba(0,240,255,0.2)] disabled:opacity-50"
+                                          disabled={!revText.trim()}
+                                          onClick={() => {
+                                            handlePostReview(revText, revScore, undefined, revImg || undefined, selectedProduct.id);
+                                            setRevText('');
+                                            setRevScore(5);
+                                            setRevImg(null);
+                                            setShowProductReviewForm(false);
+                                            setAlertMessage('תודה! הביקורת פורסמה בהצלחה למוצר זה');
+                                          }}
+                                        >
+                                          פרסם ביקורת עכשיו <Send className="w-6 h-6 ml-2" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                              
+                              <button onClick={() => {
+                                setSelectedProduct(null);
+                                setActivePage('reviews');
+                              }} className="w-full py-4 rounded-full bg-white/5 hover:bg-white/10 text-white font-bold transition-colors">
+                                לכל הביקורות בחנות
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                 </div>

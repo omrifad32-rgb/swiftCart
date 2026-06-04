@@ -63,6 +63,8 @@ export interface Review {
   s: string | number;
   time: number;
   img?: string; // Image attachment
+  productId?: string;
+  featured?: boolean;
 }
 
 export interface ContactMessage {

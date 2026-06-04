@@ -60,17 +60,16 @@
 
   body.light-theme {
     --color-bg-space-1: #ffffff;
-    --color-bg-space-2: #e8f0fe;
-    --color-bg-space-3: #e6f4ea;
-    --color-pri: #1a73e8;
-    --color-pri-glow: rgba(26, 115, 232, 0.15);
-    --color-text: #202124;
-    --color-text-muted: #5f6368;
+    --color-bg-space-2: #fcfcfc;
+    --color-bg-space-3: #f5f5f5;
+    --color-pri: #000000;
+    --color-pri-glow: rgba(0, 0, 0, 0.05);
+    --color-text: #171717;
+    --color-text-muted: #737373;
     --color-glass: rgba(255, 255, 255, 0.95);
-    --color-border: #dadce0;
-    @apply bg-[#f8f9fa] text-[#202124];
-    background: #f8f9fa;
-    background-image: radial-gradient(circle at 100% 0%, #e8f0fe 0%, #f8f9fa 50%, #e6f4ea 100%);
+    --color-border: #e5e5e5;
+    @apply bg-[#fcfcfc] text-[#171717];
+    background: #fcfcfc;
     animation: none;
   }
 
@@ -79,24 +78,25 @@
   }
 
   body.light-theme .glass-header {
-    @apply bg-white/80 border-[#dadce0] text-[#202124] shadow-sm backdrop-blur-2xl;
+    @apply bg-white/70 border-[#e5e5e5] text-[#171717] shadow-[0_4px_30px_rgba(0,0,0,0.02)] backdrop-blur-3xl;
   }
 
   body.light-theme .nav-bar {
-    @apply bg-white/90 border-[#dadce0] shadow-[0_-10px_40px_rgba(0,0,0,0.03)] backdrop-blur-2xl;
+    @apply bg-white/80 border-[#e5e5e5] shadow-[0_-4px_30px_rgba(0,0,0,0.03)] backdrop-blur-3xl text-[#737373];
   }
 
   body.light-theme .text-white:not(.btn-main, .btn-main *, .btn-delete, .btn-delete *, .sale-tag, .oos-text, .cat-tab.active, .cat-tab.active *, .bg-pri, .bg-pri *),
   body.light-theme .text-gray-300,
   body.light-theme .text-gray-400 {
-    color: #111827 !important;
+    color: #404040 !important;
   }
 
   body.light-theme h1,
   body.light-theme h2,
   body.light-theme h3,
-  body.light-theme .text-white.sec-title {
-    color: #000000 !important;
+  body.light-theme .sec-title,
+  body.light-theme .text-white.font-display {
+    color: #171717 !important;
   }
 
   body.light-theme .bg-glass,
@@ -109,75 +109,75 @@
   body.light-theme .bg-white\/10,
   body.light-theme .bg-white\/5,
   body.light-theme .mod-content {
-    @apply bg-white border-[#eaeaea] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)];
+    @apply bg-white border-[#f0f0f0] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.08)];
   }
 
   body.light-theme .bg-[#050508] {
-    background-color: white;
+    background-color: #fcfcfc;
   }
 
   body.light-theme .bg-white\/5 {
-    @apply bg-[#fafafa] border-[#eaeaea];
+    @apply bg-[#ffffff] border-[#e5e5e5] shadow-sm;
   }
 
   body.light-theme .product-card {
-    @apply bg-white border-[#dadce0] shadow-sm hover:shadow-[0_20px_40px_-15px_rgba(26,115,232,0.15)] hover:border-[#1a73e8]/40 hover:-translate-y-1 transition-all duration-500 rounded-[24px];
+    @apply bg-white border border-[#eaeaea] shadow-sm hover:shadow-[0_20px_40px_-20px_rgba(0,0,0,0.1)] hover:border-[#cccccc] hover:-translate-y-1 transition-all duration-500 rounded-[24px];
     background: white;
   }
 
   body.light-theme .text-gray-500,
   body.light-theme .text-gray-600 {
-    @apply text-[#71717a];
+    @apply text-[#737373];
   }
 
   body.light-theme input,
   body.light-theme textarea,
   body.light-theme select {
-    @apply bg-white border-[#dadce0] text-[#202124] focus:bg-white focus:ring-1 focus:ring-[#1a73e8] focus:border-[#1a73e8] transition-all duration-300 font-light rounded-xl;
+    @apply bg-white border-[#e5e5e5] text-[#171717] focus:bg-white focus:ring-1 focus:ring-black focus:border-black transition-all duration-300 rounded-xl shadow-sm;
   }
 
   body.light-theme .cat-tab {
-    @apply bg-transparent border-[#dadce0] text-[#5f6368] hover:text-[#1a73e8] hover:border-[#1a73e8] font-normal;
+    @apply bg-transparent border-[#e5e5e5] text-[#737373] hover:text-[#171717] hover:bg-[#f5f5f5] font-medium;
   }
 
   body.light-theme .cat-tab.active {
-    @apply bg-[#e8f0fe] text-[#1a73e8] border-[#1a73e8] shadow-sm font-medium;
+    @apply bg-black text-white border-black shadow-[0_8px_20px_rgba(0,0,0,0.15)] font-bold;
   }
 
   body.light-theme .close-mod {
-    @apply bg-[#f1f3f4] text-[#5f6368] hover:bg-[#e8eaed] hover:text-[#202124];
+    @apply bg-[#f5f5f5] text-[#737373] hover:bg-[#e5e5e5] hover:text-[#171717] border border-[#e5e5e5];
   }
   
   body.light-theme .btn-main {
-    @apply bg-none bg-[#1a73e8] text-white border border-[#1a73e8] shadow-[0_8px_20px_rgba(26,115,232,0.2)] hover:shadow-[0_12px_25px_rgba(26,115,232,0.3)] hover:bg-[#1557b0] font-medium tracking-widest rounded-xl transition-all duration-300 uppercase text-sm;
+    @apply bg-none bg-black text-white border border-black shadow-[0_8px_20px_rgba(0,0,0,0.15)] hover:shadow-[0_12px_25px_rgba(0,0,0,0.2)] hover:bg-[#222222] font-bold rounded-xl transition-all duration-300 uppercase;
   }
 
   body.light-theme .btn-outline {
-    @apply border-[#dadce0] text-[#1a73e8] font-medium tracking-widest rounded-xl hover:bg-[#e8f0fe] hover:border-[#e8f0fe] transition-all duration-300 uppercase text-sm;
+    @apply border-[#e5e5e5] text-[#171717] font-bold rounded-xl hover:bg-[#f5f5f5] transition-all duration-300 uppercase;
   }
 
   body.light-theme .btn-delete {
-    @apply bg-none bg-[#ea4335] text-white font-medium tracking-widest shadow-sm hover:shadow-md hover:bg-[#d93025] rounded-xl transition-all duration-300 uppercase text-sm;
+    @apply bg-none bg-[#ef4444] text-white font-bold tracking-widest shadow-sm hover:shadow-md hover:bg-[#dc2626] rounded-xl transition-all duration-300 uppercase text-sm;
   }
 
   body.light-theme .sec-title {
-    @apply font-normal border-r-4 border-[#34a853] tracking-tight;
+    @apply font-bold border-l-4 border-r-0 border-black pl-4 pr-0 tracking-tight;
   }
   
   body.light-theme .oos-text {
-    @apply bg-[#ea4335] text-white border-none shadow-xl font-medium tracking-widest uppercase text-sm px-8 py-3;
+    @apply bg-[#ef4444] text-white border-none shadow-lg font-bold tracking-widest uppercase text-sm px-8 py-3;
   }
 
   body.light-theme .sale-tag {
-    @apply bg-[#34a853] text-white font-medium tracking-widest uppercase text-[10px] px-3 py-1.5 shadow-md;
+    @apply bg-black text-white font-bold tracking-widest uppercase text-[10px] px-3 py-1.5 shadow-md;
   }
 
   body.light-theme ::-webkit-scrollbar-thumb {
-    @apply bg-slate-300;
+    @apply bg-[#d4d4d8];
   }
   
   body.light-theme ::-webkit-scrollbar-thumb:hover {
-    @apply bg-pri;
+    @apply bg-[#a1a1aa];
   }
 
   .btn-main {

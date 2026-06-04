@@ -32,8 +32,8 @@ const Footer: React.FC<FooterProps> = ({ onTermsClick }) => {
            </div>
         </div>
       </div>
-      <div className="max-w-7xl mx-auto px-6 mt-16 pt-8 border-t border-white/5 text-center text-gray-600 text-sm font-bold">
-        © {new Date().getFullYear()} כל הזכויות שמורות.
+      <div className="max-w-7xl mx-auto px-6 mt-16 pt-8 border-t border-white/5 text-center text-gray-400 text-sm font-bold">
+        © {new Date().getFullYear()} כול הזכויות שמורות ל SwiftCart
       </div>
     </footer>
   );
